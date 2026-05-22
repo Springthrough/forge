@@ -14,6 +14,7 @@ require('./commands/sync')(program);
 require('./commands/env')(program);
 require('./commands/services')(program);
 require('./commands/init')(program);
+require('./commands/extend')(program);
 
 program.parseAsync(process.argv).catch(err => {
   console.error(err.message);

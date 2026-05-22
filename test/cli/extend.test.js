@@ -1,7 +1,7 @@
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
-const { inspectDirectory, buildExtendedConfig } = require('../../src/cli/commands/extend');
+const { inspectDirectory, buildExtendedConfig, runExtend } = require('../../src/cli/commands/extend');
 
 let targetDir;
 
@@ -196,5 +196,84 @@ describe('buildExtendedConfig', () => {
     const noCurrent = { name: 'myapp', services: {} };
     const result = buildExtendedConfig(noCurrent, sourceConfig, sourceDir, currentDir);
     expect(result.processes).toHaveLength(2);
+  });
+});
+
+// ── runExtend (CLI integration) ───────────────────────────────────────────────
+
+describe('runExtend', () => {
+  let currentDir;
+  let sourceDir2;
+
+  beforeEach(() => {
+    currentDir = path.join(os.tmpdir(), `forge-extend-current-${Date.now()}`);
+    sourceDir2 = path.join(os.tmpdir(), `forge-extend-source-${Date.now()}`);
+    fs.mkdirSync(currentDir);
+    fs.mkdirSync(sourceDir2);
+  });
+
+  afterEach(() => {
+    fs.rmSync(currentDir, { recursive: true, force: true });
+    fs.rmSync(sourceDir2, { recursive: true, force: true });
+  });
+
+  function writeCurrentConfig(config) {
+    fs.mkdirSync(path.join(currentDir, '.forge'), { recursive: true });
+    fs.writeFileSync(
+      path.join(currentDir, '.forge', 'config.json'),
+      JSON.stringify(config, null, 2) + '\n'
+    );
+  }
+
+  function readCurrentConfig() {
+    return JSON.parse(fs.readFileSync(path.join(currentDir, '.forge', 'config.json'), 'utf8'));
+  }
+
+  test('appends prefixed processes to current config', async () => {
+    writeCurrentConfig({ name: 'myapp', processes: [], services: {} });
+    const sourceConfig = {
+      name: 'sai',
+      processes: [{ name: 'api', command: 'npm start', cwd: '.', ports: [3000] }],
+      services: {},
+    };
+    fs.mkdirSync(path.join(sourceDir2, '.forge'));
+    fs.writeFileSync(
+      path.join(sourceDir2, '.forge', 'config.json'),
+      JSON.stringify(sourceConfig)
+    );
+
+    await runExtend(sourceDir2, currentDir);
+
+    const updated = readCurrentConfig();
+    expect(updated.processes).toHaveLength(1);
+    expect(updated.processes[0].name).toBe('sai:api');
+  });
+
+  test('throws when current directory has no .forge/config.json', async () => {
+    fs.writeFileSync(
+      path.join(sourceDir2, 'package.json'),
+      JSON.stringify({ name: 'sai', scripts: { start: 'node s.js' } })
+    );
+    await expect(runExtend(sourceDir2, currentDir)).rejects.toThrow('.forge/config.json');
+  });
+
+  test('throws when target directory has no recognizable config', async () => {
+    writeCurrentConfig({ name: 'myapp', processes: [], services: {} });
+    await expect(runExtend(sourceDir2, currentDir)).rejects.toThrow(
+      'No .forge/config.json or package.json found'
+    );
+  });
+
+  test('written config is valid JSON', async () => {
+    writeCurrentConfig({ name: 'myapp', processes: [], services: {} });
+    fs.writeFileSync(
+      path.join(sourceDir2, 'package.json'),
+      JSON.stringify({ name: 'sai', scripts: { start: 'node s.js' } })
+    );
+
+    await runExtend(sourceDir2, currentDir);
+
+    const raw = fs.readFileSync(path.join(currentDir, '.forge', 'config.json'), 'utf8');
+    expect(() => JSON.parse(raw)).not.toThrow();
   });
 });
