@@ -1,4 +1,8 @@
 node_modules/
+coverage/
+.env
 .env.forge
 .env.local
 .forge/
+*.log
+.DS_Store
