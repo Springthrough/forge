@@ -1,7 +1,7 @@
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
-const { inspectDirectory } = require('../../src/cli/commands/extend');
+const { inspectDirectory, buildExtendedConfig } = require('../../src/cli/commands/extend');
 
 let targetDir;
 
@@ -88,8 +88,6 @@ describe('inspectDirectory', () => {
     expect(() => inspectDirectory(targetDir)).toThrow('No .forge/config.json or package.json found');
   });
 });
-
-const { buildExtendedConfig } = require('../../src/cli/commands/extend');
 
 // ── buildExtendedConfig ───────────────────────────────────────────────────────
 
@@ -192,5 +190,11 @@ describe('buildExtendedConfig', () => {
     const noProcs = { name: 'sai', services: {} };
     const result = buildExtendedConfig(currentConfig, noProcs, sourceDir, currentDir);
     expect(result.processes).toEqual(currentConfig.processes);
+  });
+
+  test('handles current config with undefined processes', () => {
+    const noCurrent = { name: 'myapp', services: {} };
+    const result = buildExtendedConfig(noCurrent, sourceConfig, sourceDir, currentDir);
+    expect(result.processes).toHaveLength(2);
   });
 });
