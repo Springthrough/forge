@@ -160,3 +160,22 @@ test('killAll() stops every process across all projects', () => {
   expect(pm.isRunning('sai',    'api')).toBe(false);
   expect(pm.isRunning('cleome', 'api')).toBe(false);
 });
+
+test('down() emits stopped status event to subscribers', () => {
+  pm.up('sai', processConfigs, allocations, '/projects/sai');
+  const events = [];
+  pm.subscribe('sai', 'api', e => events.push(e));
+  pm.down('sai');
+  expect(events.some(e => e.type === 'status' && e.status === 'stopped')).toBe(true);
+});
+
+test('killAll() cleans up listeners so no further events are emitted', () => {
+  pm.up('sai', processConfigs, allocations, '/projects/sai');
+  pm.killAll();
+  // After killAll, re-registering a listener and spawning again should work fresh
+  const events = [];
+  pm.up('sai', processConfigs, allocations, '/projects/sai');
+  pm.subscribe('sai', 'api', e => events.push(e));
+  spawnCalls[2].mock.emit('hello\n'); // third spawn (first after killAll)
+  expect(events).toHaveLength(1);
+});
