@@ -1,0 +1,4 @@
+node_modules/
+.env.forge
+.env.local
+.forge/
