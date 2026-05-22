@@ -3,6 +3,28 @@ const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
 
+function extractTomlName(content) {
+  for (const section of ['project', 'tool\\.poetry']) {
+    const m = content.match(new RegExp(`\\[${section}\\][^\\[]*?^name\\s*=\\s*["']([^"']+)["']`, 'ms'));
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function extractTomlScripts(content) {
+  for (const section of ['project\\.scripts', 'tool\\.poetry\\.scripts']) {
+    const m = content.match(new RegExp(`\\[${section}\\]([^\\[]*)`, 's'));
+    if (!m) continue;
+    const scripts = {};
+    for (const line of m[1].split('\n')) {
+      const entry = line.match(/^\s*([\w][\w-]*)\s*=\s*["']([^"']+)["']/);
+      if (entry) scripts[entry[1]] = entry[2];
+    }
+    if (Object.keys(scripts).length > 0) return scripts;
+  }
+  return {};
+}
+
 function inspectDirectory(dirPath) {
   const configPath = path.join(dirPath, '.forge', 'config.json');
   if (fs.existsSync(configPath)) {
@@ -24,7 +46,43 @@ function inspectDirectory(dirPath) {
     return { name, processes, services: {} };
   }
 
-  throw new Error(`No .forge/config.json or package.json found in ${dirPath}`);
+  // Python project detection
+  const hasPyproject = fs.existsSync(path.join(dirPath, 'pyproject.toml'));
+  const hasMakefile  = fs.existsSync(path.join(dirPath, 'Makefile'));
+  const hasAppPy     = fs.existsSync(path.join(dirPath, 'app.py'));
+  const hasMainPy    = fs.existsSync(path.join(dirPath, 'main.py'));
+
+  if (hasPyproject || hasMakefile || hasAppPy || hasMainPy) {
+    let name = path.basename(dirPath);
+    const processes = [];
+
+    if (hasPyproject) {
+      const toml = fs.readFileSync(path.join(dirPath, 'pyproject.toml'), 'utf8');
+      const extracted = extractTomlName(toml);
+      if (extracted) name = extracted;
+      for (const scriptName of Object.keys(extractTomlScripts(toml))) {
+        processes.push({ name: scriptName, command: scriptName, cwd: '.', ports: [] });
+      }
+    }
+
+    if (hasMakefile) {
+      const makefile = fs.readFileSync(path.join(dirPath, 'Makefile'), 'utf8');
+      for (const target of ['run', 'start']) {
+        if (new RegExp(`^${target}\\s*:`, 'm').test(makefile)) {
+          processes.push({ name: target, command: `make ${target}`, cwd: '.', ports: [] });
+        }
+      }
+    }
+
+    if (processes.length === 0) {
+      if (hasAppPy)  processes.push({ name: 'app',  command: 'python app.py',  cwd: '.', ports: [] });
+      else if (hasMainPy) processes.push({ name: 'main', command: 'python main.py', cwd: '.', ports: [] });
+    }
+
+    return { name, processes, services: {} };
+  }
+
+  throw new Error(`No recognized project config found in ${dirPath}`);
 }
 
 function buildExtendedConfig(currentConfig, sourceConfig, sourceDir, currentDir) {

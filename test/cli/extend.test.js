@@ -85,7 +85,89 @@ describe('inspectDirectory', () => {
   });
 
   test('throws when neither .forge/config.json nor package.json is found', () => {
-    expect(() => inspectDirectory(targetDir)).toThrow('No .forge/config.json or package.json found');
+    expect(() => inspectDirectory(targetDir)).toThrow('No recognized project config found');
+  });
+
+  test('detects Python project from pyproject.toml [project.scripts]', () => {
+    fs.writeFileSync(
+      path.join(targetDir, 'pyproject.toml'),
+      '[project]\nname = "my-service"\n\n[project.scripts]\nstart = "my_service.main:start"\n'
+    );
+    const result = inspectDirectory(targetDir);
+    expect(result.name).toBe('my-service');
+    expect(result.processes).toHaveLength(1);
+    expect(result.processes[0].name).toBe('start');
+    expect(result.processes[0].command).toBe('start');
+    expect(result.processes[0].cwd).toBe('.');
+    expect(result.processes[0].ports).toEqual([]);
+  });
+
+  test('detects Python project from [tool.poetry.scripts]', () => {
+    fs.writeFileSync(
+      path.join(targetDir, 'pyproject.toml'),
+      '[tool.poetry]\nname = "sai-web"\n\n[tool.poetry.scripts]\napi = "sai.app:main"\nworker = "sai.worker:run"\n'
+    );
+    const result = inspectDirectory(targetDir);
+    expect(result.name).toBe('sai-web');
+    expect(result.processes).toHaveLength(2);
+    expect(result.processes.map(p => p.name)).toEqual(['api', 'worker']);
+  });
+
+  test('detects Makefile run target', () => {
+    fs.writeFileSync(path.join(targetDir, 'Makefile'), 'run:\n\tpython app.py\n');
+    const result = inspectDirectory(targetDir);
+    expect(result.processes).toHaveLength(1);
+    expect(result.processes[0].name).toBe('run');
+    expect(result.processes[0].command).toBe('make run');
+    expect(result.processes[0].cwd).toBe('.');
+    expect(result.processes[0].ports).toEqual([]);
+  });
+
+  test('detects Makefile start target', () => {
+    fs.writeFileSync(
+      path.join(targetDir, 'Makefile'),
+      'build:\n\techo build\n\nstart:\n\tuvicorn main:app\n'
+    );
+    const result = inspectDirectory(targetDir);
+    expect(result.processes.find(p => p.name === 'start')).toBeTruthy();
+    expect(result.processes.find(p => p.name === 'start').command).toBe('make start');
+  });
+
+  test('falls back to app.py when pyproject.toml has no scripts', () => {
+    fs.writeFileSync(
+      path.join(targetDir, 'pyproject.toml'),
+      '[project]\nname = "my-app"\n'
+    );
+    fs.writeFileSync(path.join(targetDir, 'app.py'), '');
+    const result = inspectDirectory(targetDir);
+    expect(result.processes).toHaveLength(1);
+    expect(result.processes[0].name).toBe('app');
+    expect(result.processes[0].command).toBe('python app.py');
+  });
+
+  test('falls back to main.py when app.py is absent', () => {
+    fs.writeFileSync(path.join(targetDir, 'main.py'), '');
+    const result = inspectDirectory(targetDir);
+    expect(result.processes).toHaveLength(1);
+    expect(result.processes[0].name).toBe('main');
+    expect(result.processes[0].command).toBe('python main.py');
+  });
+
+  test('app.py takes precedence over main.py', () => {
+    fs.writeFileSync(path.join(targetDir, 'app.py'), '');
+    fs.writeFileSync(path.join(targetDir, 'main.py'), '');
+    const result = inspectDirectory(targetDir);
+    expect(result.processes[0].name).toBe('app');
+  });
+
+  test('pyproject.toml name is used even when falling back to app.py', () => {
+    fs.writeFileSync(
+      path.join(targetDir, 'pyproject.toml'),
+      '[project]\nname = "my-service"\n'
+    );
+    fs.writeFileSync(path.join(targetDir, 'app.py'), '');
+    const result = inspectDirectory(targetDir);
+    expect(result.name).toBe('my-service');
   });
 });
 
@@ -260,7 +342,7 @@ describe('runExtend', () => {
   test('throws when target directory has no recognizable config', async () => {
     writeCurrentConfig({ name: 'myapp', processes: [], services: {} });
     await expect(runExtend(sourceDir2, currentDir)).rejects.toThrow(
-      'No .forge/config.json or package.json found'
+      'No recognized project config found'
     );
   });
 
