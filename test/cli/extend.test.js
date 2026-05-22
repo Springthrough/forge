@@ -88,3 +88,109 @@ describe('inspectDirectory', () => {
     expect(() => inspectDirectory(targetDir)).toThrow('No .forge/config.json or package.json found');
   });
 });
+
+const { buildExtendedConfig } = require('../../src/cli/commands/extend');
+
+// ── buildExtendedConfig ───────────────────────────────────────────────────────
+
+describe('buildExtendedConfig', () => {
+  const currentDir = '/projects/myapp';
+  const sourceDir  = '/projects/sai';
+
+  const currentConfig = {
+    name: 'myapp',
+    envFile: '.env.forge',
+    processes: [{ name: 'web', command: 'npm start', cwd: '.', ports: [4000] }],
+    services: {},
+  };
+
+  const sourceConfig = {
+    name: 'sai',
+    processes: [
+      { name: 'api',    command: 'npm start',       cwd: '.',         ports: [3000, 3001] },
+      { name: 'worker', command: 'node worker.js',  cwd: 'packages/worker', ports: [] },
+    ],
+    services: { mongo: { db: 'sai', env: 'DATABASE_URL' } },
+  };
+
+  test('prefixes source process names with source project name', () => {
+    const result = buildExtendedConfig(currentConfig, sourceConfig, sourceDir, currentDir);
+    const names = result.processes.map(p => p.name);
+    expect(names).toContain('sai:api');
+    expect(names).toContain('sai:worker');
+  });
+
+  test('preserves existing processes unchanged', () => {
+    const result = buildExtendedConfig(currentConfig, sourceConfig, sourceDir, currentDir);
+    expect(result.processes[0]).toEqual(currentConfig.processes[0]);
+  });
+
+  test('rebases process cwd relative to currentDir', () => {
+    const result = buildExtendedConfig(currentConfig, sourceConfig, sourceDir, currentDir);
+    const api = result.processes.find(p => p.name === 'sai:api');
+    // sourceDir is /projects/sai, cwd is '.', resolved = /projects/sai
+    // relative from /projects/myapp → ../sai
+    expect(api.cwd).toBe('../sai');
+  });
+
+  test('rebases nested cwd relative to currentDir', () => {
+    const result = buildExtendedConfig(currentConfig, sourceConfig, sourceDir, currentDir);
+    const worker = result.processes.find(p => p.name === 'sai:worker');
+    // resolved = /projects/sai/packages/worker
+    // relative from /projects/myapp → ../sai/packages/worker
+    expect(worker.cwd).toBe('../sai/packages/worker');
+  });
+
+  test('normalizes empty relative path to dot', () => {
+    // source and current are the same directory
+    const result = buildExtendedConfig(currentConfig, sourceConfig, currentDir, currentDir);
+    const api = result.processes.find(p => p.name === 'sai:api');
+    expect(api.cwd).toBe('.');
+  });
+
+  test('skips source processes whose prefixed name already exists', () => {
+    const alreadyHas = {
+      ...currentConfig,
+      processes: [
+        ...currentConfig.processes,
+        { name: 'sai:api', command: 'OLD', cwd: '.', ports: [] },
+      ],
+    };
+    const result = buildExtendedConfig(alreadyHas, sourceConfig, sourceDir, currentDir);
+    const apiProcesses = result.processes.filter(p => p.name === 'sai:api');
+    expect(apiProcesses).toHaveLength(1);
+    expect(apiProcesses[0].command).toBe('OLD'); // existing one preserved
+  });
+
+  test('merges source services not already in current config', () => {
+    const result = buildExtendedConfig(currentConfig, sourceConfig, sourceDir, currentDir);
+    expect(result.services.mongo).toEqual({ db: 'sai', env: 'DATABASE_URL' });
+  });
+
+  test('current services take precedence over source services on collision', () => {
+    const withMongo = {
+      ...currentConfig,
+      services: { mongo: { db: 'myapp', env: 'DB_URL' } },
+    };
+    const result = buildExtendedConfig(withMongo, sourceConfig, sourceDir, currentDir);
+    expect(result.services.mongo.db).toBe('myapp');
+  });
+
+  test('preserves all other current config fields', () => {
+    const result = buildExtendedConfig(currentConfig, sourceConfig, sourceDir, currentDir);
+    expect(result.name).toBe('myapp');
+    expect(result.envFile).toBe('.env.forge');
+  });
+
+  test('handles source config with no processes', () => {
+    const empty = { name: 'sai', processes: [], services: {} };
+    const result = buildExtendedConfig(currentConfig, empty, sourceDir, currentDir);
+    expect(result.processes).toEqual(currentConfig.processes);
+  });
+
+  test('handles source config with undefined processes', () => {
+    const noProcs = { name: 'sai', services: {} };
+    const result = buildExtendedConfig(currentConfig, noProcs, sourceDir, currentDir);
+    expect(result.processes).toEqual(currentConfig.processes);
+  });
+});

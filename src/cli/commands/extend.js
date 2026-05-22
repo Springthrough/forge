@@ -26,8 +26,33 @@ function inspectDirectory(dirPath) {
   throw new Error(`No .forge/config.json or package.json found in ${dirPath}`);
 }
 
+function buildExtendedConfig(currentConfig, sourceConfig, sourceDir, currentDir) {
+  const sourceName = sourceConfig.name;
+  const existingNames = new Set((currentConfig.processes ?? []).map(p => p.name));
+
+  const newProcesses = (sourceConfig.processes ?? [])
+    .filter(proc => !existingNames.has(`${sourceName}:${proc.name}`))
+    .map(proc => {
+      const absProcessDir = path.resolve(sourceDir, proc.cwd ?? '.');
+      const relCwd = path.relative(currentDir, absProcessDir);
+      return { ...proc, name: `${sourceName}:${proc.name}`, cwd: relCwd === '' ? '.' : relCwd };
+    });
+
+  const mergedServices = {
+    ...(sourceConfig.services ?? {}),
+    ...(currentConfig.services ?? {}), // current wins on collision
+  };
+
+  return {
+    ...currentConfig,
+    processes: [...(currentConfig.processes ?? []), ...newProcesses],
+    services: mergedServices,
+  };
+}
+
 module.exports = function registerExtend(program) {
   // placeholder — wired up in Task 3
 };
 
 module.exports.inspectDirectory = inspectDirectory;
+module.exports.buildExtendedConfig = buildExtendedConfig;
