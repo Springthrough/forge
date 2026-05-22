@@ -93,7 +93,7 @@ module.exports = function registerExtend(program) {
           console.log(chalk.dim(`\n  Skipped ${skippedCount} already-present process(es)`));
         }
         if (addedCount === 0 && skippedCount === 0) {
-          console.log(chalk.dim('\n  No processes found in target directory'));
+          console.log(chalk.dim('\n  No processes to add from target directory'));
         }
         console.log('');
         console.log('  Run ' + chalk.dim('forge sync') + ' to apply if already registered.');

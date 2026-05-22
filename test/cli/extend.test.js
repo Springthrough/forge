@@ -276,4 +276,29 @@ describe('runExtend', () => {
     const raw = fs.readFileSync(path.join(currentDir, '.forge', 'config.json'), 'utf8');
     expect(() => JSON.parse(raw)).not.toThrow();
   });
+
+  test('skips already-present processes on re-run', async () => {
+    const sourceConfig = {
+      name: 'sai',
+      processes: [{ name: 'api', command: 'npm start', cwd: '.', ports: [3000] }],
+      services: {},
+    };
+    fs.mkdirSync(path.join(sourceDir2, '.forge'));
+    fs.writeFileSync(
+      path.join(sourceDir2, '.forge', 'config.json'),
+      JSON.stringify(sourceConfig)
+    );
+
+    writeCurrentConfig({ name: 'myapp', processes: [], services: {} });
+    const first = await runExtend(sourceDir2, currentDir);
+    expect(first.addedCount).toBe(1);
+    expect(first.skippedCount).toBe(0);
+
+    const second = await runExtend(sourceDir2, currentDir);
+    expect(second.addedCount).toBe(0);
+    expect(second.skippedCount).toBe(1);
+
+    const finalConfig = readCurrentConfig();
+    expect(finalConfig.processes).toHaveLength(1); // not doubled
+  });
 });
