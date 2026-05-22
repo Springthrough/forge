@@ -1,0 +1,60 @@
+const net = require('net');
+
+function checkTcpAvailable(port) {
+  return new Promise((resolve) => {
+    const s = net.createServer();
+    s.once('error', () => resolve(false));
+    s.once('listening', () => s.close(() => resolve(true)));
+    s.listen(port, '127.0.0.1');
+  });
+}
+
+function createPortAllocator() {
+  // "project:process" → port number
+  const reserved = new Map();
+
+  return {
+    async isAvailable(port) {
+      for (const p of reserved.values()) {
+        if (p === port) return false;
+      }
+      return checkTcpAvailable(port);
+    },
+
+    async reserve(project, process, candidates) {
+      for (const port of candidates) {
+        if (await this.isAvailable(port)) {
+          reserved.set(`${project}:${process}`, port);
+          return port;
+        }
+      }
+      throw new Error(
+        `No available port for ${project}:${process} — tried: ${candidates.join(', ')}`
+      );
+    },
+
+    release(project, process) {
+      reserved.delete(`${project}:${process}`);
+    },
+
+    releaseAll(project) {
+      for (const key of [...reserved.keys()]) {
+        if (key.startsWith(`${project}:`)) reserved.delete(key);
+      }
+    },
+
+    getAll() {
+      return Object.fromEntries(reserved);
+    },
+
+    restoreFromRegistry(projects) {
+      for (const [name, project] of Object.entries(projects)) {
+        for (const [proc, port] of Object.entries(project.allocations?.ports ?? {})) {
+          reserved.set(`${name}:${proc}`, port);
+        }
+      }
+    },
+  };
+}
+
+module.exports = { createPortAllocator };
