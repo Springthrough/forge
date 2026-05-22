@@ -39,6 +39,7 @@ describe('inspectDirectory', () => {
     expect(result.processes[0].name).toBe('start');
     expect(result.processes[0].command).toBe('npm start');
     expect(result.processes[0].cwd).toBe('.');
+    expect(result.processes[0].ports).toEqual([]);
     expect(result.services).toEqual({});
   });
 
@@ -51,6 +52,8 @@ describe('inspectDirectory', () => {
     expect(result.processes).toHaveLength(1);
     expect(result.processes[0].name).toBe('dev');
     expect(result.processes[0].command).toBe('npm run dev');
+    expect(result.processes[0].cwd).toBe('.');
+    expect(result.processes[0].ports).toEqual([]);
   });
 
   test('infers both start and dev when both scripts exist', () => {
