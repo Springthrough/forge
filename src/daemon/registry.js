@@ -7,7 +7,11 @@ const DEFAULT_PATH = path.join(os.homedir(), '.forge', 'registry.json');
 function createRegistry(registryPath = DEFAULT_PATH) {
   function read() {
     if (!fs.existsSync(registryPath)) return {};
-    return JSON.parse(fs.readFileSync(registryPath, 'utf8'));
+    try {
+      return JSON.parse(fs.readFileSync(registryPath, 'utf8'));
+    } catch {
+      throw new Error(`Registry file is malformed: ${registryPath}`);
+    }
   }
 
   function write(data) {

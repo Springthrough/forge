@@ -1,7 +1,7 @@
 // src/cli/client.js
 const { FORGE_PORT } = require('../constants');
 
-const BASE = `http://localhost:${process.env.FORGE_PORT ?? FORGE_PORT}`;
+const BASE = `http://localhost:${FORGE_PORT}`;
 
 async function call(method, urlPath, body) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
