@@ -1,7 +1,7 @@
 // src/daemon/api/projects.js
 const { Router } = require('express');
 
-function createProjectRoutes({ registry, portAllocator }) {
+function createProjectRoutes({ registry, portAllocator, serviceManager }) {
   const router = Router();
 
   async function allocatePorts(config) {
@@ -25,7 +25,8 @@ function createProjectRoutes({ registry, portAllocator }) {
     }
     try {
       const ports = await allocatePorts(config);
-      const allocations = { ports, services: {} };
+      const services = await serviceManager.provision(config.name, config.services ?? {});
+      const allocations = { ports, services };
       registry.add(config.name, { path: config.path, config, allocations });
       res.json({ ok: true, name: config.name, allocations });
     } catch (err) {
@@ -39,23 +40,31 @@ function createProjectRoutes({ registry, portAllocator }) {
     res.json({ name: req.params.name, ...project });
   });
 
-  router.delete('/:name', (req, res) => {
-    if (!registry.get(req.params.name)) {
+  router.delete('/:name', async (req, res) => {
+    const project = registry.get(req.params.name);
+    if (!project) {
       return res.status(404).json({ error: `"${req.params.name}" not found` });
     }
-    portAllocator.releaseAll(req.params.name);
-    registry.remove(req.params.name);
-    res.json({ ok: true });
+    try {
+      await serviceManager.deprovision(req.params.name, project.config?.services ?? {});
+      portAllocator.releaseAll(req.params.name);
+      registry.remove(req.params.name);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   router.post('/:name/sync', async (req, res) => {
     const project = registry.get(req.params.name);
     if (!project) return res.status(404).json({ error: `"${req.params.name}" not found` });
     try {
+      // Release old allocations then re-allocate with new config
+      await serviceManager.deprovision(req.params.name, project.config?.services ?? {});
       portAllocator.releaseAll(req.params.name);
       const ports = await allocatePorts({ ...req.body, name: req.params.name });
-      // Reconstruct full allocations — preserves services from Plan 2 once added
-      const allocations = { ...project.allocations, ports };
+      const services = await serviceManager.provision(req.params.name, req.body.services ?? {});
+      const allocations = { ports, services };
       registry.update(req.params.name, { config: req.body, allocations });
       res.json({ ok: true, name: req.params.name, allocations });
     } catch (err) {

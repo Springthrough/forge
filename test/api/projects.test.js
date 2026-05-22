@@ -5,13 +5,16 @@ const path = require('path');
 const { createServer } = require('../../src/daemon/server');
 const { createRegistry } = require('../../src/daemon/registry');
 const { createPortAllocator } = require('../../src/daemon/port-allocator');
+const { createServiceManager } = require('../../src/daemon/services/manager');
 const { findFreePort } = require('../helpers/find-free-port');
 
 function tmpServer() {
   const p = path.join(os.tmpdir(), `forge-api-test-${Date.now()}.json`);
   const registry = createRegistry(p);
   const portAllocator = createPortAllocator();
-  const { app } = createServer({ registry, portAllocator });
+  // Empty service manager — no drivers, safe for projects with services: {}
+  const serviceManager = createServiceManager([]);
+  const { app } = createServer({ registry, portAllocator, serviceManager });
   return { app, cleanup: () => fs.existsSync(p) && fs.unlinkSync(p) };
 }
 
@@ -110,5 +113,13 @@ test('POST /api/projects/:name/sync re-allocates ports for updated config', asyn
   const res = await request(app).post('/api/projects/sai/sync').send(updated);
   expect(res.status).toBe(200);
   expect(typeof res.body.allocations.ports.worker).toBe('number');
+  cleanup();
+});
+
+test('POST /api/projects/register stores empty services allocations', async () => {
+  const { app, cleanup } = tmpServer();
+  const res = await request(app).post('/api/projects/register').send(makeConfig());
+  expect(res.status).toBe(200);
+  expect(res.body.allocations.services).toEqual({});
   cleanup();
 });

@@ -6,6 +6,7 @@ const http = require('http');
 const { createServer } = require('../../src/daemon/server');
 const { createRegistry } = require('../../src/daemon/registry');
 const { createPortAllocator } = require('../../src/daemon/port-allocator');
+const { createServiceManager } = require('../../src/daemon/services/manager');
 const { writeEnvFile } = require('../../src/cli/env-file');
 const { findFreePort } = require('../helpers/find-free-port');
 
@@ -31,14 +32,14 @@ beforeAll(async () => {
       processes: [
         { name: 'api', command: 'echo hi', cwd: '.', ports: [candidatePort], portEnv: 'PORT' },
       ],
-      services: {
-        mongo: { db: 'e2e-sai', env: 'DATABASE_URL' },
-      },
+      services: {},
     })
   );
 
   registry = createRegistry(registryPath);
-  const { app } = createServer({ registry, portAllocator: createPortAllocator() });
+  // Empty service manager — no drivers, safe for unit/e2e tests without Docker
+  const serviceManager = createServiceManager([]);
+  const { app } = createServer({ registry, portAllocator: createPortAllocator(), serviceManager });
   httpServer = http.createServer(app);
   await new Promise(resolve => httpServer.listen(0, '127.0.0.1', resolve));
   daemonPort = httpServer.address().port;
