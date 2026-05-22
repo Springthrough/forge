@@ -169,6 +169,27 @@ describe('inspectDirectory', () => {
     const result = inspectDirectory(targetDir);
     expect(result.name).toBe('my-service');
   });
+
+  test('extracts pyproject.toml name when dependencies array appears before name field', () => {
+    fs.writeFileSync(
+      path.join(targetDir, 'pyproject.toml'),
+      '[project]\ndependencies = [\n  "requests>=2.0",\n]\nname = "my-project"\n'
+    );
+    const result = inspectDirectory(targetDir);
+    expect(result.name).toBe('my-project');
+  });
+
+  test('does not duplicate process when pyproject.toml script and Makefile target share a name', () => {
+    fs.writeFileSync(
+      path.join(targetDir, 'pyproject.toml'),
+      '[project]\nname = "my-app"\n\n[project.scripts]\nrun = "my_app.main:run"\n'
+    );
+    fs.writeFileSync(path.join(targetDir, 'Makefile'), 'run:\n\tpython -m my_app\n');
+    const result = inspectDirectory(targetDir);
+    const runProcesses = result.processes.filter(p => p.name === 'run');
+    expect(runProcesses).toHaveLength(1);
+    expect(runProcesses[0].command).toBe('run'); // pyproject wins (came first)
+  });
 });
 
 // ── buildExtendedConfig ───────────────────────────────────────────────────────

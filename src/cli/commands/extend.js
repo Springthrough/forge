@@ -5,8 +5,14 @@ const chalk = require('chalk');
 
 function extractTomlName(content) {
   for (const section of ['project', 'tool\\.poetry']) {
-    const m = content.match(new RegExp(`\\[${section}\\][^\\[]*?^name\\s*=\\s*["']([^"']+)["']`, 'ms'));
-    if (m) return m[1];
+    const headerRe = new RegExp(`^\\[${section}\\]`, 'm');
+    const headerMatch = headerRe.exec(content);
+    if (!headerMatch) continue;
+    const after = content.slice(headerMatch.index + headerMatch[0].length);
+    const nextSection = after.search(/^\[[^\[]/m);
+    const body = nextSection === -1 ? after : after.slice(0, nextSection);
+    const nameMatch = body.match(/^name\s*=\s*["']([^"']+)["']/m);
+    if (nameMatch) return nameMatch[1];
   }
   return null;
 }
@@ -67,8 +73,9 @@ function inspectDirectory(dirPath) {
 
     if (hasMakefile) {
       const makefile = fs.readFileSync(path.join(dirPath, 'Makefile'), 'utf8');
+      const existingNames = new Set(processes.map(p => p.name));
       for (const target of ['run', 'start']) {
-        if (new RegExp(`^${target}\\s*:`, 'm').test(makefile)) {
+        if (!existingNames.has(target) && new RegExp(`^${target}\\s*:`, 'm').test(makefile)) {
           processes.push({ name: target, command: `make ${target}`, cwd: '.', ports: [] });
         }
       }
