@@ -1,4 +1,4 @@
-// src/daemon/api/services.js  (STUB — completed in Task 5)
+// src/daemon/api/services.js
 const { Router } = require('express');
 function createServicesRoutes({ serviceManager }) {
   const router = Router();

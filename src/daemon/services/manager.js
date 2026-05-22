@@ -24,6 +24,9 @@ function createServiceManager(drivers = []) {
 
     async provision(projectName, servicesConfig, opts) {
       const connectionStrings = {};
+      // TODO: provision is not atomic — if a later driver fails, earlier drivers are not
+      // rolled back. Acceptable while mongo.provision is a no-op and redis.provision is
+      // an in-memory Map.set. Add rollback before any driver gains destructive state.
       for (const [serviceName, cfg] of Object.entries(servicesConfig ?? {})) {
         const driver = byName.get(serviceName);
         if (!driver) throw new Error(`No driver for service "${serviceName}"`);

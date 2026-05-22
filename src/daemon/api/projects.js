@@ -59,7 +59,9 @@ function createProjectRoutes({ registry, portAllocator, serviceManager }) {
     const project = registry.get(req.params.name);
     if (!project) return res.status(404).json({ error: `"${req.params.name}" not found` });
     try {
-      // Release old allocations then re-allocate with new config
+      // TODO: safer sync would allocate-new into staging first, then deprovision-old,
+      // so a bad config doesn't leave the project without allocations. Acceptable now
+      // while provision is cheap and recoverable; revisit before adding stateful drivers.
       await serviceManager.deprovision(req.params.name, project.config?.services ?? {});
       portAllocator.releaseAll(req.params.name);
       const ports = await allocatePorts({ ...req.body, name: req.params.name });
