@@ -32,7 +32,56 @@ function createServer({ registry, portAllocator, serviceManager, processManager 
 
   const server = http.createServer(app);
 
-  return { app, server, registry: reg, portAllocator: alloc, serviceManager: svcMgr, processManager: pm };
+  const { WebSocketServer } = require('ws');
+  const wss = new WebSocketServer({ server });
+
+  wss.on('connection', (ws, req) => {
+    const url = new URL(req.url, 'http://localhost');
+    const projectName = url.searchParams.get('project');
+    const processName = url.searchParams.get('process');
+
+    if (!projectName || !processName) {
+      ws.send(JSON.stringify({ type: 'error', message: 'project and process query params required' }));
+      ws.close();
+      return;
+    }
+
+    const project = reg.get(projectName);
+    if (!project) {
+      ws.send(JSON.stringify({ type: 'error', message: `Project "${projectName}" not found` }));
+      ws.close();
+      return;
+    }
+
+    // Send current status and buffered output
+    const status = pm.isRunning(projectName, processName) ? 'running' : 'stopped';
+    ws.send(JSON.stringify({ type: 'status', status }));
+
+    const buffered = pm.getBuffer(projectName, processName).join('\r\n');
+    if (buffered) ws.send(JSON.stringify({ type: 'output', data: buffered }));
+
+    // Subscribe to future events
+    const relay = (event) => {
+      if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(event));
+    };
+    pm.subscribe(projectName, processName, relay);
+
+    ws.on('message', (raw) => {
+      let msg;
+      try { msg = JSON.parse(raw); } catch { return; }
+      if (msg.type === 'input')  pm.sendInput(projectName, processName, msg.data);
+      if (msg.type === 'resize') pm.resize(projectName, processName, msg.cols, msg.rows);
+      if (msg.type === 'start') {
+        const p = reg.get(projectName);
+        if (p) pm.startProcess(projectName, processName, p.config?.processes ?? [], p.allocations ?? {}, p.path);
+      }
+      if (msg.type === 'stop') pm.stopProcess(projectName, processName);
+    });
+
+    ws.on('close', () => pm.unsubscribe(projectName, processName, relay));
+  });
+
+  return { app, server, wss, registry: reg, portAllocator: alloc, serviceManager: svcMgr, processManager: pm };
 }
 
 if (require.main === module) {
