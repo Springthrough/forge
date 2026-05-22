@@ -1,0 +1,50 @@
+const Docker = require('dockerode');
+const net = require('net');
+
+const docker = new Docker();
+
+async function ensureContainerRunning({ image, name, port, cmd, env = [] }) {
+  const containers = await docker.listContainers({ all: true });
+  const existing = containers.find(c => c.Names.includes(`/${name}`));
+
+  if (existing) {
+    if (existing.State === 'running') return;
+    await docker.getContainer(existing.Id).start();
+    return;
+  }
+
+  // Pull image if not present locally
+  await new Promise((resolve, reject) => {
+    docker.pull(image, (err, stream) => {
+      if (err) return reject(err);
+      docker.modem.followProgress(stream, err => err ? reject(err) : resolve());
+    });
+  });
+
+  const container = await docker.createContainer({
+    Image: image,
+    name,
+    Cmd: cmd,
+    ExposedPorts: { [`${port}/tcp`]: {} },
+    HostConfig: {
+      PortBindings: { [`${port}/tcp`]: [{ HostPort: String(port) }] },
+      RestartPolicy: { Name: 'unless-stopped' },
+    },
+    Env: env,
+  });
+  await container.start();
+}
+
+// TCP probe — returns true if the service is accepting connections
+function checkTcpHealth(host, port) {
+  return new Promise((resolve) => {
+    const s = new net.Socket();
+    s.setTimeout(2000);
+    s.once('connect', () => { s.destroy(); resolve(true); });
+    s.once('error', () => { s.destroy(); resolve(false); });
+    s.once('timeout', () => { s.destroy(); resolve(false); });
+    s.connect(port, host);
+  });
+}
+
+module.exports = { ensureContainerRunning, checkTcpHealth };
