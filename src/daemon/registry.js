@@ -25,6 +25,7 @@ function createRegistry(registryPath = DEFAULT_PATH) {
 
     add(name, data) {
       const all = read();
+      if (all[name]) throw new Error(`Project "${name}" is already registered`);
       all[name] = { ...data, addedAt: new Date().toISOString() };
       write(all);
     },
@@ -40,6 +41,7 @@ function createRegistry(registryPath = DEFAULT_PATH) {
 
     remove(name) {
       const all = read();
+      if (!all[name]) throw new Error(`Project "${name}" not registered`);
       delete all[name];
       write(all);
     },

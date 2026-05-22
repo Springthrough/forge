@@ -71,3 +71,12 @@ test('data persists across registry instances', () => {
   registry.add('sai', { path: '/home/user/sai', allocations: {} });
   expect(createRegistry(registryPath).get('sai').path).toBe('/home/user/sai');
 });
+
+test('add throws if project already registered', () => {
+  registry.add('sai', { path: '/home/user/sai', allocations: {} });
+  expect(() => registry.add('sai', { path: '/other', allocations: {} })).toThrow('"sai"');
+});
+
+test('remove throws for unknown project', () => {
+  expect(() => registry.remove('unknown')).toThrow('"unknown"');
+});
