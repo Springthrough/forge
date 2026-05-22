@@ -12,6 +12,7 @@ require('./commands/status')(program);
 require('./commands/remove')(program);
 require('./commands/sync')(program);
 require('./commands/env')(program);
+require('./commands/services')(program);
 
 program.parseAsync(process.argv).catch(err => {
   console.error(err.message);

@@ -24,4 +24,5 @@ module.exports = {
   registerProject: (config)     => call('POST',   '/api/projects/register', config),
   removeProject:   (name)       => call('DELETE', `/api/projects/${name}`),
   syncProject:     (name, body) => call('POST',   `/api/projects/${name}/sync`, body),
+  getServices:     ()           => call('GET',    '/api/services'),
 };
