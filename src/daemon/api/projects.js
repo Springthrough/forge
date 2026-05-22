@@ -53,7 +53,7 @@ function createProjectRoutes({ registry, portAllocator }) {
     if (!project) return res.status(404).json({ error: `"${req.params.name}" not found` });
     try {
       portAllocator.releaseAll(req.params.name);
-      const ports = await allocatePorts(req.body);
+      const ports = await allocatePorts({ ...req.body, name: req.params.name });
       // Reconstruct full allocations — preserves services from Plan 2 once added
       const allocations = { ...project.allocations, ports };
       registry.update(req.params.name, { config: req.body, allocations });
