@@ -25,6 +25,8 @@ function makeMockProcessManager() {
   };
 }
 
+let currentCleanup;
+
 function setup() {
   const tmpPath = path.join(os.tmpdir(), `forge-processes-test-${Date.now()}-${Math.random()}.json`);
   const registry = createRegistry(tmpPath);
@@ -41,8 +43,17 @@ function setup() {
     allocations: { ports: { api: 3000 }, services: {} },
   });
   const { app } = createServer({ registry, portAllocator, serviceManager, processManager });
-  return { app, processManager, cleanup: () => fs.existsSync(tmpPath) && fs.unlinkSync(tmpPath) };
+  const cleanup = () => fs.existsSync(tmpPath) && fs.unlinkSync(tmpPath);
+  currentCleanup = cleanup;
+  return { app, processManager, cleanup };
 }
+
+afterEach(() => {
+  if (currentCleanup) {
+    currentCleanup();
+    currentCleanup = null;
+  }
+});
 
 test('GET /api/projects/:name/processes returns process list', async () => {
   const { app } = setup();

@@ -20,6 +20,11 @@ function createProjectRoutes({ registry, portAllocator, serviceManager }) {
   router.post('/register', async (req, res) => {
     const config = req.body;
     if (!config?.name) return res.status(400).json({ error: 'name is required' });
+    const reserved = new Set(['up', 'down']);
+    const badProc = (config.processes ?? []).find(p => reserved.has(p.name));
+    if (badProc) {
+      return res.status(400).json({ error: `Process name "${badProc.name}" is reserved` });
+    }
     if (registry.get(config.name)) {
       return res.status(409).json({ error: `"${config.name}" is already registered` });
     }

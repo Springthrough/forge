@@ -25,7 +25,7 @@ function createServer({ registry, portAllocator, serviceManager, processManager 
 
   const app = express();
   app.use(express.json());
-  app.use('/api/health',   createHealthRoutes());
+  app.use('/api/health', createHealthRoutes());
   app.use('/api/projects', createProjectRoutes({ registry: reg, portAllocator: alloc, serviceManager: svcMgr }));
   app.use('/api/services', createServicesRoutes({ serviceManager: svcMgr }));
   app.use('/api/projects/:name/processes', createProcessRoutes({ registry: reg, processManager: pm }));

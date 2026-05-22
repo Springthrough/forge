@@ -123,3 +123,21 @@ test('POST /api/projects/register stores empty services allocations', async () =
   expect(res.body.allocations.services).toEqual({});
   cleanup();
 });
+
+test('POST /api/projects/register rejects process named "up"', async () => {
+  const { app, cleanup } = tmpServer();
+  const config = makeConfig({ processes: [{ name: 'up', command: 'echo hi', cwd: '.', ports: [] }] });
+  const res = await request(app).post('/api/projects/register').send(config);
+  expect(res.status).toBe(400);
+  expect(res.body.error).toMatch(/reserved/);
+  cleanup();
+});
+
+test('POST /api/projects/register rejects process named "down"', async () => {
+  const { app, cleanup } = tmpServer();
+  const config = makeConfig({ processes: [{ name: 'down', command: 'echo hi', cwd: '.', ports: [] }] });
+  const res = await request(app).post('/api/projects/register').send(config);
+  expect(res.status).toBe(400);
+  expect(res.body.error).toMatch(/reserved/);
+  cleanup();
+});
