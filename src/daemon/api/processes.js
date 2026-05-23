@@ -25,6 +25,23 @@ function createProcessRoutes({ registry, processManager }) {
     res.json({ ok: true, project: req.params.name });
   });
 
+  router.post('/:processName/up', (req, res) => {
+    const project = registry.get(req.params.name);
+    if (!project) return res.status(404).json({ error: `"${req.params.name}" not found` });
+    processManager.startProcess(
+      req.params.name, req.params.processName,
+      project.config?.processes ?? [], project.allocations ?? {}, project.path
+    );
+    res.json({ ok: true, project: req.params.name, process: req.params.processName });
+  });
+
+  router.post('/:processName/down', (req, res) => {
+    const project = registry.get(req.params.name);
+    if (!project) return res.status(404).json({ error: `"${req.params.name}" not found` });
+    processManager.stopProcess(req.params.name, req.params.processName);
+    res.json({ ok: true, project: req.params.name, process: req.params.processName });
+  });
+
   router.post('/:processName/restart', (req, res) => {
     const project = registry.get(req.params.name);
     if (!project) return res.status(404).json({ error: `"${req.params.name}" not found` });

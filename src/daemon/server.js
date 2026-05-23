@@ -10,6 +10,8 @@ const { createHealthRoutes } = require('./api/health');
 const { createProjectRoutes } = require('./api/projects');
 const { createServicesRoutes } = require('./api/services');
 const { createProcessRoutes } = require('./api/processes');
+const path = require('path');
+const fs   = require('fs');
 
 function createServer({ registry, portAllocator, serviceManager, processManager } = {}) {
   const reg = registry ?? createRegistry();
@@ -84,6 +86,12 @@ function createServer({ registry, portAllocator, serviceManager, processManager 
 
     ws.on('close', () => pm.unsubscribe(projectName, processName, relay));
   });
+
+  const webDist = path.join(__dirname, '../../web/dist');
+  app.use(express.static(webDist));
+  if (fs.existsSync(path.join(webDist, 'index.html'))) {
+    app.get('*', (_req, res) => res.sendFile(path.join(webDist, 'index.html')));
+  }
 
   return { app, server, wss, registry: reg, portAllocator: alloc, serviceManager: svcMgr, processManager: pm };
 }
