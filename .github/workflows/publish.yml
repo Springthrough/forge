@@ -8,8 +8,6 @@ on:
 jobs:
   publish:
     runs-on: macos-latest
-    permissions:
-      id-token: write  # required for npm OIDC trusted publishing
     steps:
       - uses: actions/checkout@v4
 
@@ -32,4 +30,6 @@ jobs:
         run: npm test
 
       - name: Publish to npm
-        run: npm publish --provenance
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
