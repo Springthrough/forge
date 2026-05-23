@@ -24,6 +24,10 @@
   "jest": {
     "testMatch": [
       "**/test/**/*.test.js"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/.claude/"
     ]
   },
   "publishConfig": {

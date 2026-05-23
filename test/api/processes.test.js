@@ -79,7 +79,8 @@ test('POST /api/projects/:name/processes/up calls processManager.up', async () =
     'sai',
     expect.arrayContaining([expect.objectContaining({ name: 'api' })]),
     expect.objectContaining({ ports: { api: 3000 } }),
-    '/projects/sai'
+    '/projects/sai',
+    expect.any(Object)
   );
 });
 
@@ -103,7 +104,7 @@ test('POST /api/projects/:name/processes/:proc/restart calls processManager.rest
   expect(res.status).toBe(200);
   expect(res.body.ok).toBe(true);
   expect(processManager.restart).toHaveBeenCalledWith(
-    'sai', 'api', expect.any(Array), expect.any(Object), '/projects/sai'
+    'sai', 'api', expect.any(Array), expect.any(Object), '/projects/sai', expect.any(Object)
   );
 });
 
@@ -111,4 +112,36 @@ test('POST restart returns 404 for unknown project', async () => {
   const { app } = setup();
   const res = await request(app).post('/api/projects/unknown/processes/api/restart');
   expect(res.status).toBe(404);
+});
+
+test('POST down does not stop shared services', async () => {
+  const tmpPath2 = path.join(os.tmpdir(), `forge-proc-nosvc-${Date.now()}.json`);
+  const reg2 = createRegistry(tmpPath2);
+  const mongoDriver = {
+    name: 'mongo',
+    containerName: 'forge-mongo',
+    port: 27017,
+    start: jest.fn().mockResolvedValue(undefined),
+    stop: jest.fn().mockResolvedValue(undefined),
+    healthCheck: jest.fn().mockResolvedValue(true),
+    provision: jest.fn().mockResolvedValue(undefined),
+    connectionString: jest.fn().mockReturnValue('mongodb://localhost/test'),
+    deprovision: jest.fn().mockResolvedValue(undefined),
+    restoreFromRegistry: jest.fn(),
+  };
+  const svcMgr2 = createServiceManager([mongoDriver]);
+  reg2.add('sai', {
+    path: '/projects/sai',
+    config: { name: 'sai', processes: [], services: { mongo: { db: 'sai' } } },
+    allocations: { ports: {}, services: { mongo: 'mongodb://localhost/sai' } },
+  });
+  const { app: app2 } = createServer({
+    registry: reg2,
+    portAllocator: createPortAllocator(),
+    serviceManager: svcMgr2,
+    processManager: makeMockProcessManager(),
+  });
+  await request(app2).post('/api/projects/sai/processes/down').expect(200);
+  expect(mongoDriver.stop).not.toHaveBeenCalled();
+  fs.unlinkSync(tmpPath2);
 });
