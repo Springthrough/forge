@@ -38,18 +38,17 @@ function makeWsCollector(url) {
   const waiters = [];
   ws.on('message', (raw) => {
     const msg = JSON.parse(raw);
-    if (waiters.length > 0) waiters.shift()(msg);
+    if (waiters.length > 0) waiters.shift().resolve(msg);
     else queue.push(msg);
   });
   ws.on('error', (err) => {
-    for (const w of waiters) w(Promise.reject(err));
+    for (const w of waiters) w.reject(err);
     waiters.length = 0;
   });
   function nextMessage() {
     if (queue.length > 0) return Promise.resolve(queue.shift());
     return new Promise((resolve, reject) => {
-      waiters.push(resolve);
-      ws.once('error', reject);
+      waiters.push({ resolve, reject });
     });
   }
   return { ws, nextMessage };

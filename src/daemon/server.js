@@ -67,15 +67,19 @@ function createServer({ registry, portAllocator, serviceManager, processManager 
     pm.subscribe(projectName, processName, relay);
 
     ws.on('message', (raw) => {
-      let msg;
-      try { msg = JSON.parse(raw); } catch { return; }
-      if (msg.type === 'input')  pm.sendInput(projectName, processName, msg.data);
-      if (msg.type === 'resize') pm.resize(projectName, processName, msg.cols, msg.rows);
-      if (msg.type === 'start') {
-        const p = reg.get(projectName);
-        if (p) pm.startProcess(projectName, processName, p.config?.processes ?? [], p.allocations ?? {}, p.path);
+      try {
+        let msg;
+        try { msg = JSON.parse(raw); } catch { return; }
+        if (msg.type === 'input')  pm.sendInput(projectName, processName, msg.data);
+        if (msg.type === 'resize') pm.resize(projectName, processName, msg.cols, msg.rows);
+        if (msg.type === 'start') {
+          const p = reg.get(projectName);
+          if (p) pm.startProcess(projectName, processName, p.config?.processes ?? [], p.allocations ?? {}, p.path);
+        }
+        if (msg.type === 'stop') pm.stopProcess(projectName, processName);
+      } catch (err) {
+        if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'error', message: err.message }));
       }
-      if (msg.type === 'stop') pm.stopProcess(projectName, processName);
     });
 
     ws.on('close', () => pm.unsubscribe(projectName, processName, relay));

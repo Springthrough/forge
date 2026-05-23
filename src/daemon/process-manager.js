@@ -80,7 +80,6 @@ function createProcessManager({ ptySpawn } = {}) {
     if (record?.ptyProcess) { try { record.ptyProcess.kill(); } catch {} }
     emit(k, { type: 'status', status: 'stopped' });
     processes.delete(k);
-    listeners.delete(k);
   }
 
   return {
@@ -156,7 +155,6 @@ function createProcessManager({ ptySpawn } = {}) {
         if (record?.ptyProcess) { try { record.ptyProcess.kill(); } catch {} }
       }
       processes.clear();
-      listeners.clear();
     },
   };
 }
