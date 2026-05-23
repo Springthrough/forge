@@ -36,20 +36,22 @@ function createServicesRoutes({ serviceManager, registry, instanceStore, driverF
     res.json(serviceManager.getCatalog());
   });
 
-  router.post('/up', async (req, res) => {
+  router.post('/up', async (_req, res) => {
     const names = serviceManager.getCatalog();
     const errors = [];
+    const started = [];
     for (const name of names) {
       try {
         await serviceManager.startByName(name);
+        started.push(name);
       } catch (err) {
         errors.push({ name, error: err.message });
       }
     }
     if (errors.length > 0) {
-      return res.status(500).json({ ok: false, errors });
+      return res.status(500).json({ ok: false, started, errors });
     }
-    res.json({ ok: true, started: names });
+    res.json({ ok: true, started });
   });
 
   router.post('/up/:name', async (req, res) => {
@@ -65,7 +67,7 @@ function createServicesRoutes({ serviceManager, registry, instanceStore, driverF
     }
   });
 
-  router.post('/down', async (req, res) => {
+  router.post('/down', async (_req, res) => {
     const blocked = getRunningProjectServices();
     const names = serviceManager.getCatalog();
     const stopped = [];
