@@ -54,4 +54,22 @@ async function stopContainer(name) {
   await docker.getContainer(existing.Id).stop();
 }
 
-module.exports = { ensureContainerRunning, stopContainer, checkTcpHealth };
+// Exec a command inside a running container. Exit code is not checked — callers
+// that need idempotent provisioning (e.g. "create if not exists") can ignore failures.
+async function execInContainer(containerName, cmd) {
+  const containers = await docker.listContainers();
+  const existing = containers.find(c => c.Names.includes(`/${containerName}`));
+  if (!existing) throw new Error(`Container "${containerName}" is not running`);
+  const container = docker.getContainer(existing.Id);
+  const exec = await container.exec({ Cmd: cmd, AttachStdout: true, AttachStderr: true });
+  await new Promise((resolve, reject) => {
+    exec.start({}, (err, stream) => {
+      if (err) return reject(err);
+      stream.resume();
+      stream.on('end', resolve);
+      stream.on('error', reject);
+    });
+  });
+}
+
+module.exports = { ensureContainerRunning, stopContainer, checkTcpHealth, execInContainer };

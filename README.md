@@ -90,12 +90,21 @@ Port env vars that use generic names like `PORT` are NOT written to `.env.forge`
 
 ### Shared services
 
-Forge manages a single shared `forge-mongo` (Mongo 7) and `forge-redis` (Redis 7) Docker container on demand. Containers start automatically on `forge up` and stop when no registered project needs them on `forge down`.
+Forge manages shared Docker containers for four services on demand. Containers start automatically on `forge up` and stop when no registered project needs them on `forge down`.
+
+| Service | Container | Image | Port |
+|---|---|---|---|
+| `mongo` | `forge-mongo` | `mongo:7` | 27017 |
+| `redis` | `forge-redis` | `redis:7` | 6379 |
+| `postgres` | `forge-postgres` | `postgres:16` | 5432 |
+| `rabbitmq` | `forge-rabbitmq` | `rabbitmq:3` | 5672 |
 
 Each project gets an isolated allocation:
 
 - **Mongo**: its own named database within the shared container
 - **Redis**: its own database number (1–63), auto-assigned per registered project
+- **Postgres**: its own named database, created automatically on `forge add`
+- **RabbitMQ**: its own virtual host, created automatically on `forge add`
 
 If a container is externally removed while the daemon is running, forge detects the health failure and recreates it automatically.
 
@@ -184,6 +193,20 @@ See [docs/multi-project.md](docs/multi-project.md) for a full walkthrough of thi
 | Field | Type | Description |
 |---|---|---|
 | `env` | string | Env var name written to `.env.forge` with the full connection string (`redis://localhost:6379/<db>`). The `<db>` number is auto-assigned per registered project — do not hardcode it. |
+
+#### PostgreSQL
+
+| Field | Type | Description |
+|---|---|---|
+| `db` | string | Database name. Forge creates the database if it does not exist. Defaults to a sanitized form of the project `name`. |
+| `env` | string | Env var name written to `.env.forge` with the full connection string (`postgresql://postgres:forge@localhost:5432/<db>`). |
+
+#### RabbitMQ
+
+| Field | Type | Description |
+|---|---|---|
+| `vhost` | string | Virtual host name. Forge creates the vhost and grants `guest` full permissions if it does not exist. Defaults to a sanitized form of the project `name`. |
+| `env` | string | Env var name written to `.env.forge` with the full connection string (`amqp://guest:guest@localhost:5672/<vhost>`). |
 
 ### Sibling port discovery
 

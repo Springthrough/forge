@@ -19,6 +19,8 @@ function createServer({ registry, portAllocator, serviceManager, processManager 
   const svcMgr = serviceManager ?? createServiceManager([
     require('./services/drivers/mongo'),
     require('./services/drivers/redis'),
+    require('./services/drivers/postgres'),
+    require('./services/drivers/rabbitmq'),
   ]);
   const pm = processManager ?? createProcessManager();
 
