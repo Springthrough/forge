@@ -1,5 +1,6 @@
 // src/daemon/process-manager.js
 const path = require('path');
+const { parseEnvFile } = require('../parse-env-file');
 
 const MAX_BUFFER = 200;
 
@@ -43,6 +44,11 @@ function createProcessManager({ ptySpawn } = {}) {
     Object.assign(env, proc.env ?? {});
     const port = allocations?.ports?.[proc.name];
     if (port !== undefined && proc.portEnv) env[proc.portEnv] = String(port);
+
+    if (proc.envFile) {
+      const overrides = parseEnvFile(path.resolve(projectPath, proc.envFile));
+      if (overrides) Object.assign(env, overrides);
+    }
 
     const cwd = path.resolve(projectPath, proc.cwd ?? '.');
     const record = { status: 'running', startedAt: Date.now(), buffer: [], pid: null, ptyProcess: null };

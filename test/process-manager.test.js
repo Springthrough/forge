@@ -1,3 +1,6 @@
+const os = require('os');
+const fs = require('fs');
+const path = require('path');
 const { createProcessManager } = require('../src/daemon/process-manager');
 
 function makeMockPty() {
@@ -178,4 +181,46 @@ test('killAll() cleans up listeners so no further events are emitted', () => {
   pm.subscribe('sai', 'api', e => events.push(e));
   spawnCalls[2].mock.emit('hello\n'); // third spawn (first after killAll)
   expect(events).toHaveLength(1);
+});
+
+test('envFile vars are injected into the spawned process env', () => {
+  const envFilePath = path.join(os.tmpdir(), `forge-envfile-test-${Date.now()}.env`);
+  fs.writeFileSync(envFilePath, 'SECRET_KEY=abc123\nOTHER=xyz\n');
+  const configs = [{ name: 'api', command: 'npm start', cwd: '.', ports: [], envFile: envFilePath }];
+  pm.up('sai', configs, {}, '/projects/sai');
+  expect(spawnCalls[0].env.SECRET_KEY).toBe('abc123');
+  expect(spawnCalls[0].env.OTHER).toBe('xyz');
+  fs.unlinkSync(envFilePath);
+});
+
+test('envFile vars override proc.env when the same key appears in both', () => {
+  const envFilePath = path.join(os.tmpdir(), `forge-envfile-test-${Date.now()}.env`);
+  fs.writeFileSync(envFilePath, 'KEY=from_file\n');
+  const configs = [{ name: 'api', command: 'npm start', cwd: '.', ports: [], env: { KEY: 'from_config' }, envFile: envFilePath }];
+  pm.up('sai', configs, {}, '/projects/sai');
+  expect(spawnCalls[0].env.KEY).toBe('from_file');
+  fs.unlinkSync(envFilePath);
+});
+
+test('missing envFile is silently skipped — process still spawns', () => {
+  const configs = [{ name: 'api', command: 'npm start', cwd: '.', ports: [], envFile: '/nonexistent/path.env' }];
+  expect(() => pm.up('sai', configs, {}, '/projects/sai')).not.toThrow();
+  expect(spawnCalls).toHaveLength(1);
+});
+
+test('missing envFile does not inject any extra vars', () => {
+  const configs = [{ name: 'api', command: 'npm start', cwd: '.', ports: [], envFile: '/nonexistent/path.env' }];
+  pm.up('sai', configs, {}, '/projects/sai');
+  expect(Object.keys(spawnCalls[0].env)).toHaveLength(0);
+});
+
+test('envFile path is resolved relative to projectPath', () => {
+  const projectPath = os.tmpdir();
+  const relPath = `forge-envfile-rel-${Date.now()}.env`;
+  const absPath = path.join(projectPath, relPath);
+  fs.writeFileSync(absPath, 'REL_VAR=resolved\n');
+  const configs = [{ name: 'api', command: 'npm start', cwd: '.', ports: [], envFile: relPath }];
+  pm.up('sai', configs, {}, projectPath);
+  expect(spawnCalls[0].env.REL_VAR).toBe('resolved');
+  fs.unlinkSync(absPath);
 });
