@@ -62,6 +62,10 @@ module.exports = function registerServices(program) {
       }
       try {
         const result = await client.stopServices(name);
+        if (!result.ok && !(result.stopped || result.blocked)) {
+          console.error(chalk.red(result.error ?? 'Failed to stop services'));
+          process.exit(1);
+        }
         for (const n of result.stopped ?? []) {
           console.log(chalk.green(`✓ ${chalk.bold(n)}`) + chalk.dim('  stopped'));
         }
