@@ -17,6 +17,7 @@
 | Create | `src/parse-env-file.js` | Parse `.env`-format files into `{KEY: value}` maps |
 | Modify | `src/daemon/process-manager.js` | Read `proc.envFile` in `startOne`, merge vars last |
 | Modify | `src/cli/commands/add.js` | Gitignore each process's `envFile` after registration |
+| Modify | `src/cli/commands/reload.js` | Gitignore each process's `envFile` on `forge reload` |
 | Modify | `src/cli/commands/up.js` | Gitignore each process's `envFile` on `forge up` |
 | Modify | `src/cli/commands/env.js` | Show Override files section in output |
 | Create | `test/parse-env-file.test.js` | Unit tests for `parseEnvFile` |
@@ -149,14 +150,21 @@ The env merge order in `startOne` is:
 3. Port var (`portEnv`)
 4. `envFile` vars — **highest priority**, merged last
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Add missing imports to `test/process-manager.test.js`**
 
-Add these tests to the bottom of `test/process-manager.test.js`:
+Prepend these three lines at the very top of `test/process-manager.test.js` (before the existing `const { createProcessManager }` line):
 
 ```js
 const os = require('os');
 const fs = require('fs');
+const path = require('path');
+```
 
+- [ ] **Step 2: Write the failing tests**
+
+Add these tests to the bottom of `test/process-manager.test.js`:
+
+```js
 test('envFile vars are injected into the spawned process env', () => {
   const envFilePath = path.join(os.tmpdir(), `forge-envfile-test-${Date.now()}.env`);
   fs.writeFileSync(envFilePath, 'SECRET_KEY=abc123\nOTHER=xyz\n');
@@ -200,9 +208,7 @@ test('envFile path is resolved relative to projectPath', () => {
 });
 ```
 
-Note: `path` is already imported at the top of `test/process-manager.test.js` — check if it is; if not, add `const path = require('path');` at the top.
-
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 3: Run tests to verify they fail**
 
 ```bash
 npx jest test/process-manager.test.js --no-coverage
@@ -210,7 +216,7 @@ npx jest test/process-manager.test.js --no-coverage
 
 Expected: FAIL — the 5 new tests fail because `proc.envFile` is not used yet.
 
-- [ ] **Step 3: Update `startOne` in `process-manager.js`**
+- [ ] **Step 4: Update `startOne` in `process-manager.js`**
 
 Add the require at the top of the file (after the existing `const path = require('path');`):
 
@@ -236,7 +242,7 @@ if (proc.envFile) {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 5: Run tests to verify they pass**
 
 ```bash
 npx jest test/process-manager.test.js --no-coverage
@@ -244,7 +250,7 @@ npx jest test/process-manager.test.js --no-coverage
 
 Expected: PASS (all tests including existing ones)
 
-- [ ] **Step 5: Run full test suite to check for regressions**
+- [ ] **Step 6: Run full test suite to check for regressions**
 
 ```bash
 npx jest --no-coverage
@@ -252,7 +258,7 @@ npx jest --no-coverage
 
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add src/daemon/process-manager.js test/process-manager.test.js
@@ -261,23 +267,20 @@ git commit -m "feat: process-manager reads envFile and merges vars at spawn time
 
 ---
 
-## Task 3: Auto-gitignore `envFile` paths on `forge add` and `forge up`
+## Task 3: Auto-gitignore `envFile` paths on `forge add`, `forge reload`, and `forge up`
 
 **Files:**
 - Modify: `src/cli/commands/add.js`
+- Modify: `src/cli/commands/reload.js`
 - Modify: `src/cli/commands/up.js`
 
 No new tests needed — `ensureGitignored` is already unit-tested in `test/env-file.test.js`. These changes are wiring-only.
 
 - [ ] **Step 1: Update `add.js`**
 
-In `src/cli/commands/add.js`, import `ensureGitignored` alongside `writeEnvFile` (it is already imported — check the existing import line):
+`ensureGitignored` is already imported at the top of `src/cli/commands/add.js` alongside `writeEnvFile` — no import change needed.
 
-```js
-const { writeEnvFile, ensureGitignored } = require('../env-file');
-```
-
-After the existing `ensureGitignored(cwd, envFile)` call (around line 51), add:
+After the closing `}` of the `if (envFile !== false)` block (line 67, which ends with `else console.log(...)`), add:
 
 ```js
 for (const proc of config.processes ?? []) {
@@ -285,7 +288,19 @@ for (const proc of config.processes ?? []) {
 }
 ```
 
-- [ ] **Step 2: Update `up.js`**
+- [ ] **Step 2: Update `reload.js`**
+
+`ensureGitignored` is already imported at the top of `src/cli/commands/reload.js` alongside `writeEnvFile` — no import change needed.
+
+After the closing `}` of the `if (envFile !== false)` block (line 43, which ends with `else console.log(...)`), add:
+
+```js
+for (const proc of config.processes ?? []) {
+  if (proc.envFile) ensureGitignored(cwd, proc.envFile);
+}
+```
+
+- [ ] **Step 3: Update `up.js`**
 
 In `src/cli/commands/up.js`, import `ensureGitignored` alongside `writeEnvFile`:
 
@@ -321,7 +336,7 @@ async function startProject(project) {
 }
 ```
 
-- [ ] **Step 3: Run full test suite**
+- [ ] **Step 4: Run full test suite**
 
 ```bash
 npx jest --no-coverage
@@ -329,11 +344,11 @@ npx jest --no-coverage
 
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add src/cli/commands/add.js src/cli/commands/up.js
-git commit -m "feat: auto-gitignore process envFile paths on forge add and forge up"
+git add src/cli/commands/add.js src/cli/commands/reload.js src/cli/commands/up.js
+git commit -m "feat: auto-gitignore process envFile paths on forge add, reload, and up"
 ```
 
 ---
@@ -474,6 +489,7 @@ git commit -m "feat: forge env shows override files and their declared keys"
 | Merge order: service URLs < proc.env < portEnv < envFile | Task 2 |
 | Missing envFile silently skipped | Task 1 (`parseEnvFile` returns null), Task 2 (null check) |
 | Auto-gitignore on `forge add` | Task 3 |
+| Auto-gitignore on `forge reload` | Task 3 |
 | Auto-gitignore on `forge up` | Task 3 |
 | `forge env` Override files section | Task 4 |
 
