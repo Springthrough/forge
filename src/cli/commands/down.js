@@ -11,24 +11,33 @@ module.exports = function registerDown(program) {
         console.error(chalk.red('Forge daemon is not running. Run: forge install'));
         process.exit(1);
       }
-      try {
-        if (projectName) {
+      if (projectName) {
+        try {
           await client.downProject(projectName);
           console.log(chalk.green(`✓ ${projectName}`) + chalk.dim('  stopped'));
-        } else {
-          const projects = await client.getProjects();
-          if (projects.length === 0) {
-            console.log(chalk.dim('No projects registered.'));
-            return;
-          }
-          for (const project of projects) {
+        } catch (err) {
+          console.error(chalk.red(err.message));
+          process.exit(1);
+        }
+      } else {
+        const projects = await client.getProjects();
+        if (projects.length === 0) {
+          console.log(chalk.dim('No projects registered.'));
+          return;
+        }
+        const errors = [];
+        for (const project of projects) {
+          try {
             await client.downProject(project.name);
             console.log(chalk.green(`✓ ${project.name}`) + chalk.dim('  stopped'));
+          } catch (err) {
+            errors.push(`${project.name}: ${err.message}`);
           }
         }
-      } catch (err) {
-        console.error(chalk.red(err.message));
-        process.exit(1);
+        if (errors.length > 0) {
+          for (const e of errors) console.error(chalk.red(e));
+          process.exit(1);
+        }
       }
     });
 };

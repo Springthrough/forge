@@ -8,8 +8,8 @@ module.exports = function registerStatus(program) {
     .description('Show all registered projects and their process status')
     .action(async () => {
       if (!await client.isDaemonRunning()) {
-        console.log(chalk.red('Forge daemon is not running.'));
-        return;
+        console.error(chalk.red('Forge daemon is not running.'));
+        process.exit(1);
       }
       const projects = await client.getProjects();
       if (projects.length === 0) {

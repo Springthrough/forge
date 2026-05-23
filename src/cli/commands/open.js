@@ -15,9 +15,11 @@ module.exports = function registerOpen(program) {
       }
       const url = `http://localhost:${FORGE_PORT}`;
       const cmd = process.platform === 'darwin' ? 'open'
-                : process.platform === 'win32'  ? 'start'
+                : process.platform === 'win32'  ? 'cmd /c start'
                 :                                 'xdg-open';
-      exec(`${cmd} ${url}`);
+      exec(`${cmd} ${url}`, (err) => {
+        if (err) console.error(chalk.red(`Failed to open browser: ${err.message}`));
+      });
       console.log(chalk.green(`✓ Opening ${url}`));
     });
 };
