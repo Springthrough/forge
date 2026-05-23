@@ -19,8 +19,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "build:web": "vite build --config web/vite.config.js",
-    "dev:web": "vite --config web/vite.config.js",
-    "prepare": "npm run build:web"
+    "dev:web": "vite --config web/vite.config.js"
   },
   "jest": {
     "testMatch": [

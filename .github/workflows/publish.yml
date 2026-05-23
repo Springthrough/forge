@@ -17,10 +17,19 @@ jobs:
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
 
-      - run: npm ci
+      - name: Install root dependencies
+        run: npm ci
 
-      - run: npm test
+      - name: Install web dependencies
+        run: npm ci --prefix web
 
-      - run: npm publish
+      - name: Build web UI
+        run: npm run build:web
+
+      - name: Run tests
+        run: npm test
+
+      - name: Publish to npm
+        run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
