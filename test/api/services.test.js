@@ -15,6 +15,7 @@ function makeMockDriver(name, healthy) {
     image: `${name}:latest`,
     port: 9999,
     start: jest.fn().mockResolvedValue(undefined),
+    stop: jest.fn().mockResolvedValue(undefined),
     healthCheck: jest.fn().mockResolvedValue(healthy),
     provision: jest.fn().mockResolvedValue(undefined),
     connectionString: jest.fn().mockReturnValue(`${name}://localhost/db`),
@@ -44,6 +45,46 @@ function tmpServerWithStore(drivers, instanceData = {}) {
     portAllocator: createPortAllocator(),
     serviceManager: svcMgr,
     instanceStore: store,
+  });
+  return {
+    app,
+    cleanup: () => {
+      if (fs.existsSync(regPath)) fs.unlinkSync(regPath);
+      if (fs.existsSync(storePath)) fs.unlinkSync(storePath);
+    },
+  };
+}
+
+function makeMockProcessManager(runningProjects = new Set()) {
+  return {
+    getStatuses: jest.fn((projectName, processes) =>
+      processes.map(p => ({
+        name: p.name,
+        status: runningProjects.has(projectName) ? 'running' : 'stopped',
+        pid: null,
+        uptime: 0,
+      }))
+    ),
+    up: jest.fn(), down: jest.fn(), restart: jest.fn(),
+    isRunning: jest.fn(() => false), getBuffer: jest.fn(() => []),
+    subscribe: jest.fn(), unsubscribe: jest.fn(),
+    sendInput: jest.fn(), resize: jest.fn(), killAll: jest.fn(),
+    startProcess: jest.fn(), stopProcess: jest.fn(),
+  };
+}
+
+function tmpServerWithPM(drivers, instanceData = {}, runningProjects = new Set()) {
+  const regPath = path.join(os.tmpdir(), `forge-svc-pm-${Date.now()}-${Math.random()}.json`);
+  const storePath = path.join(os.tmpdir(), `forge-store-pm-${Date.now()}-${Math.random()}.json`);
+  const store = createInstanceStore(storePath);
+  for (const [key, cfg] of Object.entries(instanceData)) store.set(key, cfg);
+  const processManager = makeMockProcessManager(runningProjects);
+  const { app } = createServer({
+    registry: createRegistry(regPath),
+    portAllocator: createPortAllocator(),
+    serviceManager: createServiceManager(drivers),
+    instanceStore: store,
+    processManager,
   });
   return {
     app,
@@ -178,4 +219,126 @@ test('POST /api/services/instances returns 400 when type or instance is missing'
   expect(res.status).toBe(400);
   expect(res.body.error).toMatch(/required/i);
   cleanup();
+});
+
+// ── services up/down routes ──────────────────────────────────────────────────
+
+test('POST /api/services/up starts all drivers', async () => {
+  const mongo = makeMockDriver('mongo', true);
+  const redis = makeMockDriver('redis', true);
+  const { app, cleanup } = tmpServerWithPM([mongo, redis]);
+  const res = await request(app).post('/api/services/up');
+  expect(res.status).toBe(200);
+  expect(res.body.ok).toBe(true);
+  expect(res.body.started).toEqual(expect.arrayContaining(['mongo', 'redis']));
+  expect(mongo.start).toHaveBeenCalledTimes(1);
+  expect(redis.start).toHaveBeenCalledTimes(1);
+  cleanup();
+});
+
+test('POST /api/services/up/:name starts only the named driver', async () => {
+  const mongo = makeMockDriver('mongo', true);
+  const redis = makeMockDriver('redis', true);
+  const { app, cleanup } = tmpServerWithPM([mongo, redis]);
+  const res = await request(app).post('/api/services/up/mongo');
+  expect(res.status).toBe(200);
+  expect(res.body.ok).toBe(true);
+  expect(mongo.start).toHaveBeenCalledTimes(1);
+  expect(redis.start).not.toHaveBeenCalled();
+  cleanup();
+});
+
+test('POST /api/services/up/:name returns 404 for unknown service', async () => {
+  const { app, cleanup } = tmpServerWithPM([]);
+  const res = await request(app).post('/api/services/up/unknown');
+  expect(res.status).toBe(404);
+  cleanup();
+});
+
+test('POST /api/services/down stops services not used by running projects', async () => {
+  const mongo = makeMockDriver('mongo', true);
+  const redis = makeMockDriver('redis', true);
+  const { app, cleanup } = tmpServerWithPM([mongo, redis]);
+  const res = await request(app).post('/api/services/down');
+  expect(res.status).toBe(200);
+  expect(res.body.ok).toBe(true);
+  expect(res.body.stopped).toEqual(expect.arrayContaining(['mongo', 'redis']));
+  expect(res.body.blocked).toEqual([]);
+  expect(mongo.stop).toHaveBeenCalledTimes(1);
+  expect(redis.stop).toHaveBeenCalledTimes(1);
+  cleanup();
+});
+
+test('POST /api/services/down blocks services used by a running project', async () => {
+  const mongo = makeMockDriver('mongo', true);
+  const regPath = path.join(os.tmpdir(), `forge-svc-block-${Date.now()}.json`);
+  const storePath = path.join(os.tmpdir(), `forge-store-block-${Date.now()}.json`);
+  const store = createInstanceStore(storePath);
+  const reg = createRegistry(regPath);
+  reg.add('sai', {
+    path: '/projects/sai',
+    config: {
+      name: 'sai',
+      processes: [{ name: 'api', command: 'node server.js', cwd: '.', ports: [], portEnv: 'PORT' }],
+      services: { mongo: { db: 'sai' } },
+    },
+    allocations: { ports: {}, services: {} },
+  });
+  const pm = makeMockProcessManager(new Set(['sai']));
+  const { app } = createServer({
+    registry: reg,
+    portAllocator: createPortAllocator(),
+    serviceManager: createServiceManager([mongo]),
+    instanceStore: store,
+    processManager: pm,
+  });
+  const res = await request(app).post('/api/services/down');
+  expect(res.status).toBe(200);
+  expect(res.body.blocked).toHaveLength(1);
+  expect(res.body.blocked[0].name).toBe('mongo');
+  expect(res.body.blocked[0].reason).toMatch(/sai/);
+  expect(mongo.stop).not.toHaveBeenCalled();
+  if (fs.existsSync(regPath)) fs.unlinkSync(regPath);
+  if (fs.existsSync(storePath)) fs.unlinkSync(storePath);
+});
+
+test('POST /api/services/down/:name stops a named service', async () => {
+  const redis = makeMockDriver('redis', true);
+  const { app, cleanup } = tmpServerWithPM([redis]);
+  const res = await request(app).post('/api/services/down/redis');
+  expect(res.status).toBe(200);
+  expect(res.body.ok).toBe(true);
+  expect(redis.stop).toHaveBeenCalledTimes(1);
+  cleanup();
+});
+
+test('POST /api/services/down/:name returns 409 when a running project needs it', async () => {
+  const mongo = makeMockDriver('mongo', true);
+  const regPath = path.join(os.tmpdir(), `forge-svc-409-${Date.now()}.json`);
+  const storePath = path.join(os.tmpdir(), `forge-store-409-${Date.now()}.json`);
+  const store = createInstanceStore(storePath);
+  const reg = createRegistry(regPath);
+  reg.add('sai', {
+    path: '/projects/sai',
+    config: {
+      name: 'sai',
+      processes: [{ name: 'api', command: 'node server.js', cwd: '.', ports: [], portEnv: 'PORT' }],
+      services: { mongo: { db: 'sai' } },
+    },
+    allocations: { ports: {}, services: {} },
+  });
+  const pm = makeMockProcessManager(new Set(['sai']));
+  const { app } = createServer({
+    registry: reg,
+    portAllocator: createPortAllocator(),
+    serviceManager: createServiceManager([mongo]),
+    instanceStore: store,
+    processManager: pm,
+  });
+  const res = await request(app).post('/api/services/down/mongo');
+  expect(res.status).toBe(409);
+  expect(res.body.error).toMatch(/sai/);
+  expect(mongo.stop).not.toHaveBeenCalled();
+  if (fs.existsSync(regPath)) fs.unlinkSync(regPath);
+  if (fs.existsSync(storePath)) fs.unlinkSync(storePath);
 });
