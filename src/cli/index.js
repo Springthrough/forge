@@ -15,6 +15,9 @@ require('./commands/env')(program);
 require('./commands/services')(program);
 require('./commands/init')(program);
 require('./commands/extend')(program);
+require('./commands/up')(program);
+require('./commands/down')(program);
+require('./commands/open')(program);
 
 program.parseAsync(process.argv).catch(err => {
   console.error(err.message);

@@ -18,11 +18,15 @@ async function isDaemonRunning() {
 
 module.exports = {
   isDaemonRunning,
-  health:          ()           => call('GET',    '/api/health'),
-  getProjects:     ()           => call('GET',    '/api/projects'),
-  getProject:      (name)       => call('GET',    `/api/projects/${name}`),
-  registerProject: (config)     => call('POST',   '/api/projects/register', config),
-  removeProject:   (name)       => call('DELETE', `/api/projects/${name}`),
-  syncProject:     (name, body) => call('POST',   `/api/projects/${name}/sync`, body),
-  getServices:     ()           => call('GET',    '/api/services'),
+  health:          ()                => call('GET',    '/api/health'),
+  getProjects:     ()                => call('GET',    '/api/projects'),
+  getProject:      (name)            => call('GET',    `/api/projects/${name}`),
+  registerProject: (config)          => call('POST',   '/api/projects/register', config),
+  removeProject:   (name)            => call('DELETE', `/api/projects/${name}`),
+  syncProject:     (name, body)      => call('POST',   `/api/projects/${name}/sync`, body),
+  getServices:     ()                => call('GET',    '/api/services'),
+  getProcesses:    (name)            => call('GET',    `/api/projects/${name}/processes`),
+  upProject:       (name)            => call('POST',   `/api/projects/${name}/processes/up`),
+  downProject:     (name)            => call('POST',   `/api/projects/${name}/processes/down`),
+  restartProcess:  (name, proc)      => call('POST',   `/api/projects/${name}/processes/${proc}/restart`),
 };
