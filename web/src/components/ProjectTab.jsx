@@ -37,7 +37,7 @@ export default function ProjectTab({ project }) {
     } catch {
       setOrder(processes.map(p => p.name));
     }
-  }, [project?.name]);
+  }, [project?.name, processes.length]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -60,9 +60,9 @@ export default function ProjectTab({ project }) {
 
   if (!project) return <div className="empty-state">Project not found.</div>;
 
-  const orderedProcesses = order
-    .map(name => processes.find(p => p.name === name))
-    .filter(Boolean);
+  const orderedProcesses = order.length > 0
+    ? order.map(name => processes.find(p => p.name === name)).filter(Boolean)
+    : processes;
 
   return (
     <div className="project-tab">
