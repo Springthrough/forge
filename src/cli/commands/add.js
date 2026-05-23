@@ -1,9 +1,21 @@
 // src/cli/commands/add.js
 const fs = require('fs');
 const path = require('path');
+const readline = require('readline');
 const chalk = require('chalk');
 const client = require('../client');
 const { writeEnvFile, ensureGitignored } = require('../env-file');
+const { writeClaude, hasForgeSection } = require('../claude-md');
+
+function confirm(question) {
+  return new Promise(resolve => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(question, answer => {
+      rl.close();
+      resolve(answer.trim() === '' || answer.trim().toLowerCase().startsWith('y'));
+    });
+  });
+}
 
 module.exports = function registerAdd(program) {
   program
@@ -55,6 +67,24 @@ module.exports = function registerAdd(program) {
       }
       for (const w of result.warnings ?? []) {
         console.warn(chalk.yellow(`\n  ⚠ ${w}`));
+      }
+
+      try {
+        if (hasForgeSection(cwd)) {
+          writeClaude(cwd, config);
+          console.log(chalk.dim('\n  Updated CLAUDE.md'));
+        } else {
+          const claudeExists = fs.existsSync(path.join(cwd, 'CLAUDE.md'));
+          const q = claudeExists
+            ? '\nAdd a forge section to existing CLAUDE.md for AI assistants? [Y/n] '
+            : '\nWrite CLAUDE.md with forge context for AI assistants? [Y/n] ';
+          if (await confirm(q)) {
+            writeClaude(cwd, config);
+            console.log(chalk.dim(`  ${claudeExists ? 'Updated' : 'Wrote'} CLAUDE.md`));
+          }
+        }
+      } catch (err) {
+        console.warn(chalk.yellow(`  ⚠ Could not write CLAUDE.md: ${err.message}`));
       }
     });
 };
