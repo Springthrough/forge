@@ -20,13 +20,13 @@ module.exports = function registerReload(program) {
         process.exit(1);
       }
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      if (!await client.isDaemonRunning()) {
+      let health;
+      try {
+        health = await client.health();
+      } catch {
         console.error(chalk.red('Forge daemon is not running.'));
         process.exit(1);
       }
-
-      let health = {};
-      try { health = await client.health(); } catch { /* skip version check if health call fails */ }
       if ((health.version ?? null) !== null && health.version !== version) {
         console.warn(chalk.yellow(`  ⚠ Daemon is running v${health.version} but forge v${version} is installed — run \`forge restart\` to apply code changes.`));
       }

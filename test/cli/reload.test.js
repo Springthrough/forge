@@ -33,9 +33,6 @@ describe('forge reload — version mismatch warning', () => {
       processes: [],
     }));
 
-    // Daemon is running
-    client.isDaemonRunning.mockResolvedValue(true);
-
     // syncProject returns minimal valid result
     client.syncProject.mockResolvedValue({
       allocations: { ports: {} },
@@ -81,19 +78,4 @@ describe('forge reload — version mismatch warning', () => {
     expect(warned).toBe(false);
   });
 
-  test('continues without warning when health call fails', async () => {
-    client.health.mockRejectedValue(new Error('connection refused'));
-
-    const { Command } = require('commander');
-    const program = new Command();
-    registerReload(program);
-    await program.parseAsync(['node', 'forge', 'reload'], { from: 'node' });
-
-    const warned = warnSpy.mock.calls.some(
-      ([msg]) => typeof msg === 'string' && msg.includes('⚠') && msg.includes('forge restart')
-    );
-    expect(warned).toBe(false);
-    // Reload should have continued — syncProject was still called
-    expect(client.syncProject).toHaveBeenCalled();
-  });
 });
