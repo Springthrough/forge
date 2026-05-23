@@ -62,20 +62,6 @@ function createServiceManager(drivers = []) {
       }
     },
 
-    async stopUnused(servicesConfig, allProjects, excludeProjectName) {
-      for (const serviceName of Object.keys(servicesConfig ?? {})) {
-        const driver = byName.get(serviceName);
-        if (!driver) continue;
-        const stillNeeded = Object.entries(allProjects).some(
-          ([name, project]) => name !== excludeProjectName && project.config?.services?.[serviceName]
-        );
-        if (!stillNeeded) {
-          await driver.stop();
-          started.delete(serviceName);
-        }
-      }
-    },
-
     async getStatus() {
       const statuses = [];
       for (const driver of byName.values()) {

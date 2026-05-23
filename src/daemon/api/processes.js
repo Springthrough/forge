@@ -27,12 +27,6 @@ function createProcessRoutes({ registry, processManager, serviceManager }) {
     const project = registry.get(req.params.name);
     if (!project) return res.status(404).json({ error: `"${req.params.name}" not found` });
     processManager.down(req.params.name);
-    try {
-      await serviceManager.stopUnused(project.config?.services ?? {}, registry.getAll(), req.params.name);
-    } catch (err) {
-      // Non-fatal — processes are already stopped
-      console.error(`Failed to stop unused services: ${err.message}`);
-    }
     res.json({ ok: true, project: req.params.name });
   });
 
