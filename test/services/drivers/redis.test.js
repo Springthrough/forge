@@ -62,3 +62,15 @@ test('driver has required interface fields', () => {
   expect(driver.image).toContain('redis');
   expect(driver.port).toBe(6379);
 });
+
+test('createRedisDriver accepts custom port and containerName', () => {
+  const driver = createRedisDriver({ port: 6380, containerName: 'forge-redis-2' });
+  expect(driver.port).toBe(6380);
+  expect(driver.containerName).toBe('forge-redis-2');
+  expect(driver.name).toBe('redis');
+});
+
+test('createRedisDriver with custom name uses it as driver name', () => {
+  const driver = createRedisDriver({ name: 'redis:cache', port: 6380, containerName: 'forge-redis-cache' });
+  expect(driver.name).toBe('redis:cache');
+});

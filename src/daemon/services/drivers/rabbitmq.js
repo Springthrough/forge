@@ -10,29 +10,29 @@ function sanitizeVhost(name) {
   return name.replace(/[^a-zA-Z0-9._-]/g, '-').replace(/^-+/, '') || 'forge';
 }
 
-function createRabbitmqDriver() {
+function createRabbitmqDriver({ name = NAME, containerName = CONTAINER_NAME, port = PORT } = {}) {
   const vhosts = new Map();
 
   return {
-    name: NAME,
-    containerName: CONTAINER_NAME,
+    name,
+    containerName,
     image: IMAGE,
-    port: PORT,
+    port,
 
     async start() {
-      await ensureContainerRunning({ image: IMAGE, name: CONTAINER_NAME, port: PORT });
+      await ensureContainerRunning({ image: IMAGE, name: containerName, port });
     },
 
     async healthCheck() {
-      return checkTcpHealth('127.0.0.1', PORT);
+      return checkTcpHealth('127.0.0.1', port);
     },
 
     async provision(projectName, cfg) {
       if (vhosts.has(projectName)) return;
       const vhost = cfg?.vhost || sanitizeVhost(projectName);
       // add_vhost exits non-zero if the vhost already exists — execInContainer ignores exit codes.
-      await execInContainer(CONTAINER_NAME, ['rabbitmqctl', 'add_vhost', vhost]);
-      await execInContainer(CONTAINER_NAME, [
+      await execInContainer(containerName, ['rabbitmqctl', 'add_vhost', vhost]);
+      await execInContainer(containerName, [
         'rabbitmqctl', 'set_permissions', '-p', vhost, 'guest', '.*', '.*', '.*',
       ]);
       vhosts.set(projectName, vhost);
@@ -40,11 +40,11 @@ function createRabbitmqDriver() {
 
     connectionString(projectName, cfg) {
       const vhost = vhosts.get(projectName) ?? cfg?.vhost ?? sanitizeVhost(projectName);
-      return `amqp://guest:guest@localhost:${PORT}/${encodeURIComponent(vhost)}`;
+      return `amqp://guest:guest@localhost:${port}/${encodeURIComponent(vhost)}`;
     },
 
     async stop() {
-      await stopContainer(CONTAINER_NAME);
+      await stopContainer(containerName);
     },
 
     async deprovision(projectName) {
@@ -52,15 +52,18 @@ function createRabbitmqDriver() {
     },
 
     restoreFromRegistry(projects) {
-      for (const [name, project] of Object.entries(projects)) {
-        const url = project.allocations?.services?.rabbitmq;
+      for (const [projectName, project] of Object.entries(projects)) {
+        const url = project.allocations?.services?.[name];
         if (!url) continue;
         const match = url.match(/\/([^/]*)$/);
-        if (match) vhosts.set(name, decodeURIComponent(match[1]));
+        if (match) vhosts.set(projectName, decodeURIComponent(match[1]));
       }
     },
   };
 }
 
+const createRabbitMQDriver = createRabbitmqDriver;
+
 module.exports = createRabbitmqDriver();
 module.exports.createRabbitmqDriver = createRabbitmqDriver;
+module.exports.createRabbitMQDriver = createRabbitMQDriver;

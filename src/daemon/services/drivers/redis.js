@@ -5,7 +5,7 @@ const CONTAINER_NAME = 'forge-redis';
 const IMAGE = 'redis:7';
 const PORT = 6379;
 
-function createRedisDriver() {
+function createRedisDriver({ name = NAME, containerName = CONTAINER_NAME, port = PORT } = {}) {
   // projectName → database number (1–63). Database 0 is reserved.
   const dbNumbers = new Map();
 
@@ -18,23 +18,23 @@ function createRedisDriver() {
   }
 
   return {
-    name: NAME,
-    containerName: CONTAINER_NAME,
+    name,
+    containerName,
     image: IMAGE,
-    port: PORT,
+    port,
 
     async start() {
       await ensureContainerRunning({
         image: IMAGE,
-        name: CONTAINER_NAME,
-        port: PORT,
+        name: containerName,
+        port,
         // Override default of 16 databases to support up to 63 projects
         cmd: ['redis-server', '--databases', '64'],
       });
     },
 
     async healthCheck() {
-      return checkTcpHealth('127.0.0.1', PORT);
+      return checkTcpHealth('127.0.0.1', port);
     },
 
     async provision(projectName, _cfg) {
@@ -45,11 +45,11 @@ function createRedisDriver() {
     connectionString(projectName, _cfg) {
       const n = dbNumbers.get(projectName);
       if (n == null) throw new Error(`No Redis allocation for project "${projectName}"`);
-      return `redis://localhost:${PORT}/${n}`;
+      return `redis://localhost:${port}/${n}`;
     },
 
     async stop() {
-      await stopContainer(CONTAINER_NAME);
+      await stopContainer(containerName);
     },
 
     async deprovision(projectName) {
@@ -57,12 +57,12 @@ function createRedisDriver() {
     },
 
     restoreFromRegistry(projects) {
-      for (const [name, project] of Object.entries(projects)) {
-        const url = project.allocations?.services?.redis;
+      for (const [projectName, project] of Object.entries(projects)) {
+        const url = project.allocations?.services?.[name];
         if (!url) continue;
         // Parse db number from "redis://localhost:6379/N"
         const match = url.match(/\/(\d+)$/);
-        if (match) dbNumbers.set(name, parseInt(match[1], 10));
+        if (match) dbNumbers.set(projectName, parseInt(match[1], 10));
       }
     },
   };

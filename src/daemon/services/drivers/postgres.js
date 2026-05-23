@@ -11,33 +11,33 @@ function sanitizeDbName(name) {
   return name.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^_+/, '') || 'forge_db';
 }
 
-function createPostgresDriver() {
+function createPostgresDriver({ name = NAME, containerName = CONTAINER_NAME, port = PORT } = {}) {
   const dbNames = new Map();
 
   return {
-    name: NAME,
-    containerName: CONTAINER_NAME,
+    name,
+    containerName,
     image: IMAGE,
-    port: PORT,
+    port,
 
     async start() {
       await ensureContainerRunning({
         image: IMAGE,
-        name: CONTAINER_NAME,
-        port: PORT,
+        name: containerName,
+        port,
         env: [`POSTGRES_PASSWORD=${PASSWORD}`],
       });
     },
 
     async healthCheck() {
-      return checkTcpHealth('127.0.0.1', PORT);
+      return checkTcpHealth('127.0.0.1', port);
     },
 
     async provision(projectName, cfg) {
       if (dbNames.has(projectName)) return;
       const db = cfg?.db || sanitizeDbName(projectName);
       // CREATE DATABASE is not transactional; ignore error if already exists.
-      await execInContainer(CONTAINER_NAME, [
+      await execInContainer(containerName, [
         'psql', '-U', USER, '-c', `CREATE DATABASE "${db}"`,
       ]);
       dbNames.set(projectName, db);
@@ -45,11 +45,11 @@ function createPostgresDriver() {
 
     connectionString(projectName, cfg) {
       const db = dbNames.get(projectName) ?? cfg?.db ?? sanitizeDbName(projectName);
-      return `postgresql://${USER}:${PASSWORD}@localhost:${PORT}/${db}`;
+      return `postgresql://${USER}:${PASSWORD}@localhost:${port}/${db}`;
     },
 
     async stop() {
-      await stopContainer(CONTAINER_NAME);
+      await stopContainer(containerName);
     },
 
     async deprovision(projectName) {
@@ -57,11 +57,11 @@ function createPostgresDriver() {
     },
 
     restoreFromRegistry(projects) {
-      for (const [name, project] of Object.entries(projects)) {
-        const url = project.allocations?.services?.postgres;
+      for (const [projectName, project] of Object.entries(projects)) {
+        const url = project.allocations?.services?.[name];
         if (!url) continue;
         const match = url.match(/\/([^/]+)$/);
-        if (match) dbNames.set(name, match[1]);
+        if (match) dbNames.set(projectName, match[1]);
       }
     },
   };
