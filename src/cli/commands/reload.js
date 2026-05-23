@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
+const { version } = require('../../../package.json');
 const client = require('../client');
 const { writeEnvFile, ensureGitignored } = require('../env-file');
 const { writeClaude, hasForgeSection } = require('../claude-md');
@@ -23,6 +24,13 @@ module.exports = function registerReload(program) {
         console.error(chalk.red('Forge daemon is not running.'));
         process.exit(1);
       }
+
+      let health = {};
+      try { health = await client.health(); } catch { /* skip version check if health call fails */ }
+      if ((health.version ?? null) !== null && health.version !== version) {
+        console.warn(chalk.yellow(`  ⚠ Daemon is running v${health.version} but forge v${version} is installed — run \`forge restart\` to apply code changes.`));
+      }
+
       let result;
       try {
         result = await client.syncProject(config.name, { ...config, path: cwd });
