@@ -12,15 +12,38 @@ const { createServicesRoutes } = require('./api/services');
 const { createProcessRoutes } = require('./api/processes');
 const path = require('path');
 const fs   = require('fs');
+const { createInstanceStore } = require('./services/instance-store');
+
+const DRIVER_FACTORIES = {
+  mongo: require('./services/drivers/mongo').createMongoDriver,
+  postgres: require('./services/drivers/postgres').createPostgresDriver,
+  redis: require('./services/drivers/redis').createRedisDriver,
+  rabbitmq: require('./services/drivers/rabbitmq').createRabbitmqDriver,
+};
+
+function buildCustomDrivers(instanceStore) {
+  const BUILT_IN_NAMES = new Set(['mongo', 'postgres', 'redis', 'rabbitmq']);
+  const instances = instanceStore.getAll();
+  return Object.entries(instances).map(([key, cfg]) => {
+    if (BUILT_IN_NAMES.has(key)) return null;
+    const factory = DRIVER_FACTORIES[cfg.type];
+    if (!factory) return null;
+    const containerName = `forge-${cfg.type}-${cfg.instance}`;
+    return factory({ name: key, containerName, port: cfg.port, ...(cfg.options ?? {}) });
+  }).filter(Boolean);
+}
 
 function createServer({ registry, portAllocator, serviceManager, processManager, instanceStore } = {}) {
   const reg = registry ?? createRegistry();
   const alloc = portAllocator ?? createPortAllocator();
+  const store = instanceStore ?? createInstanceStore();
+  const customDrivers = buildCustomDrivers(store);
   const svcMgr = serviceManager ?? createServiceManager([
     require('./services/drivers/mongo'),
     require('./services/drivers/redis'),
     require('./services/drivers/postgres'),
     require('./services/drivers/rabbitmq'),
+    ...customDrivers,
   ]);
   const pm = processManager ?? createProcessManager();
 
@@ -31,7 +54,7 @@ function createServer({ registry, portAllocator, serviceManager, processManager,
   app.use(express.json());
   app.use('/api/health', createHealthRoutes());
   app.use('/api/projects', createProjectRoutes({ registry: reg, portAllocator: alloc, serviceManager: svcMgr }));
-  app.use('/api/services', createServicesRoutes({ serviceManager: svcMgr, registry: reg, instanceStore }));
+  app.use('/api/services', createServicesRoutes({ serviceManager: svcMgr, registry: reg, instanceStore: store, driverFactories: DRIVER_FACTORIES }));
   app.use('/api/projects/:name/processes', createProcessRoutes({ registry: reg, processManager: pm, serviceManager: svcMgr }));
 
   const server = http.createServer(app);
