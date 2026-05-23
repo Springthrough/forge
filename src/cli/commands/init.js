@@ -53,7 +53,7 @@ module.exports = function registerInit(program) {
         console.log(chalk.green('✓ Created .forge/config.json'));
         console.log('');
         console.log('  Edit it to define your processes and services, then run:');
-        console.log(chalk.dim('  forge add'));
+        console.log(chalk.dim('  forge add') + '    — registers project and offers to write CLAUDE.md');
       } catch (err) {
         console.error(chalk.red(err.message));
         process.exit(1);
