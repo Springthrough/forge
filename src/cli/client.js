@@ -32,4 +32,14 @@ module.exports = {
   downProject:     (name)            => call('POST',   `/api/projects/${enc(name)}/processes/down`),
   restartProcess:  (name, proc)      => call('POST',   `/api/projects/${enc(name)}/processes/${proc}/restart`),
   getLogs:         (name, proc, n)   => call('GET',    `/api/projects/${enc(name)}/processes/${proc}/logs${n ? `?lines=${n}` : ''}`),
+  listInstances:   ()                => call('GET',    '/api/services/instances'),
+  addInstance:     (type, instance, { port, replicaSet } = {}) =>
+    call('POST', '/api/services/instances', {
+      type,
+      instance,
+      ...(port ? { port } : {}),
+      options: { ...(replicaSet ? { replicaSet: true } : {}) },
+    }),
+  removeInstance:  (key)             => call('DELETE', `/api/services/instances/${enc(key)}`),
+  configureInstance: (key, options)  => call('PATCH',  `/api/services/instances/${enc(key)}`, { options }),
 };
