@@ -73,13 +73,13 @@ module.exports = function registerService(program) {
     });
 
   service
-    .command('configure <type> <name>')
-    .description('Update options for a named service instance')
+    .command('configure <type> [name]')
+    .description('Update options for a service instance (omit name to configure the built-in default)')
     .option('--port <port>', 'Change the bound port', parseInt)
     .option('--replica-set', 'Enable MongoDB replica set mode')
     .option('--no-replica-set', 'Disable MongoDB replica set mode')
     .action(async (type, name, opts) => {
-      const key = `${type}:${name}`;
+      const key = name ? `${type}:${name}` : type;
       if (!await client.isDaemonRunning()) {
         console.error(chalk.red('Forge daemon is not running.'));
         process.exit(1);
@@ -93,5 +93,8 @@ module.exports = function registerService(program) {
         process.exit(1);
       }
       console.log(chalk.green(`✓ Updated ${chalk.bold(key)}`));
+      if (!name) {
+        console.log(chalk.dim(`  Run 'forge services down ${type} && forge services up ${type}' to apply.`));
+      }
     });
 };

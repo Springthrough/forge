@@ -342,3 +342,43 @@ test('POST /api/services/down/:name returns 409 when a running project needs it'
   if (fs.existsSync(regPath)) fs.unlinkSync(regPath);
   if (fs.existsSync(storePath)) fs.unlinkSync(storePath);
 });
+
+test('PATCH /api/services/instances/:key creates built-in override when key does not exist', async () => {
+  const { app, cleanup } = tmpServerWithStore([]);
+  const res = await request(app)
+    .patch('/api/services/instances/mongo')
+    .send({ options: { replicaSet: true } });
+  expect(res.status).toBe(200);
+  expect(res.body.ok).toBe(true);
+  const listRes = await request(app).get('/api/services/instances');
+  const entry = listRes.body.find(i => i.key === 'mongo');
+  expect(entry).toBeDefined();
+  expect(entry.port).toBe(27017);
+  expect(entry.options.replicaSet).toBe(true);
+  cleanup();
+});
+
+test('PATCH /api/services/instances/:key returns 404 for unknown named instance', async () => {
+  const { app, cleanup } = tmpServerWithStore([]);
+  const res = await request(app)
+    .patch('/api/services/instances/mongo:unknown')
+    .send({ options: { replicaSet: true } });
+  expect(res.status).toBe(404);
+  cleanup();
+});
+
+test('PATCH /api/services/instances/mongo can be patched twice (idempotent upsert)', async () => {
+  const { app, cleanup } = tmpServerWithStore([]);
+  await request(app)
+    .patch('/api/services/instances/mongo')
+    .send({ options: { replicaSet: true } })
+    .expect(200);
+  const res = await request(app)
+    .patch('/api/services/instances/mongo')
+    .send({ options: { replicaSet: false } });
+  expect(res.status).toBe(200);
+  const listRes = await request(app).get('/api/services/instances');
+  const entry = listRes.body.find(i => i.key === 'mongo');
+  expect(entry.options.replicaSet).toBe(false);
+  cleanup();
+});

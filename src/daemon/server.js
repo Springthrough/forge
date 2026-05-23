@@ -21,30 +21,45 @@ const DRIVER_FACTORIES = {
   rabbitmq: require('./services/drivers/rabbitmq').createRabbitmqDriver,
 };
 
-function buildCustomDrivers(instanceStore) {
-  const BUILT_IN_NAMES = new Set(['mongo', 'postgres', 'redis', 'rabbitmq']);
+const DEFAULT_DRIVERS = [
+  require('./services/drivers/mongo'),
+  require('./services/drivers/redis'),
+  require('./services/drivers/postgres'),
+  require('./services/drivers/rabbitmq'),
+];
+
+function buildDriverList(instanceStore, driverFactories, defaultDrivers) {
   const instances = instanceStore.getAll();
-  return Object.entries(instances).map(([key, cfg]) => {
-    if (BUILT_IN_NAMES.has(key)) return null;
-    const factory = DRIVER_FACTORIES[cfg.type];
-    if (!factory) return null;
-    const containerName = `forge-${cfg.type}-${cfg.instance}`;
-    return factory({ name: key, containerName, port: cfg.port, ...(cfg.options ?? {}) });
-  }).filter(Boolean);
+  const overriddenBuiltIns = new Set(
+    Object.keys(instances).filter(k => defaultDrivers.some(d => d.name === k))
+  );
+
+  const customAndOverrides = Object.entries(instances)
+    .map(([key, cfg]) => {
+      const isBuiltIn = defaultDrivers.some(d => d.name === key);
+      const type = isBuiltIn ? key : cfg.type;
+      const factory = driverFactories[type];
+      if (!factory) return null;
+      const containerName = isBuiltIn
+        ? `forge-${key}`
+        : `forge-${cfg.type}-${cfg.instance}`;
+      return factory({ name: key, containerName, port: cfg.port, ...(cfg.options ?? {}) });
+    })
+    .filter(Boolean);
+
+  return [
+    ...defaultDrivers.filter(d => !overriddenBuiltIns.has(d.name)),
+    ...customAndOverrides,
+  ];
 }
 
 function createServer({ registry, portAllocator, serviceManager, processManager, instanceStore } = {}) {
   const reg = registry ?? createRegistry();
   const alloc = portAllocator ?? createPortAllocator();
   const store = instanceStore ?? createInstanceStore();
-  const customDrivers = buildCustomDrivers(store);
-  const svcMgr = serviceManager ?? createServiceManager([
-    require('./services/drivers/mongo'),
-    require('./services/drivers/redis'),
-    require('./services/drivers/postgres'),
-    require('./services/drivers/rabbitmq'),
-    ...customDrivers,
-  ]);
+  const svcMgr = serviceManager ?? createServiceManager(
+    buildDriverList(store, DRIVER_FACTORIES, DEFAULT_DRIVERS)
+  );
   const pm = processManager ?? createProcessManager();
 
   alloc.restoreFromRegistry(reg.getAll());
@@ -131,4 +146,4 @@ if (require.main === module) {
   process.on('SIGINT',  shutdown);
 }
 
-module.exports = { createServer };
+module.exports = { createServer, buildDriverList };
