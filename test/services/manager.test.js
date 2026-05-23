@@ -12,6 +12,7 @@ function makeMockDriver(name, healthy = true) {
     connectionString: jest.fn().mockReturnValue(`${name}://localhost/testdb`),
     deprovision: jest.fn().mockResolvedValue(undefined),
     restoreFromRegistry: jest.fn(),
+    stop: jest.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -132,4 +133,29 @@ test('registerDriver throws if a driver with that name is already registered', (
   const manager = createServiceManager([mongo]);
   expect(() => manager.registerDriver(makeMockDriver('mongo')))
     .toThrow('Driver "mongo" is already registered');
+});
+
+test('startByName starts the named driver', async () => {
+  const mongo = makeMockDriver('mongo');
+  const manager = createServiceManager([mongo]);
+  await manager.startByName('mongo');
+  expect(mongo.start).toHaveBeenCalledTimes(1);
+});
+
+test('startByName throws for unknown driver name', async () => {
+  const manager = createServiceManager([]);
+  await expect(manager.startByName('mongo')).rejects.toThrow('No driver for service "mongo"');
+});
+
+test('stopByName stops the named driver', async () => {
+  const mongo = makeMockDriver('mongo');
+  const manager = createServiceManager([mongo]);
+  await manager.startByName('mongo');
+  await manager.stopByName('mongo');
+  expect(mongo.stop).toHaveBeenCalledTimes(1);
+});
+
+test('stopByName throws for unknown driver name', async () => {
+  const manager = createServiceManager([]);
+  await expect(manager.stopByName('mongo')).rejects.toThrow('No driver for service "mongo"');
 });

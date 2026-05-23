@@ -84,6 +84,19 @@ function createServiceManager(drivers = []) {
       }
       return statuses;
     },
+
+    async startByName(name) {
+      const driver = byName.get(name);
+      if (!driver) throw new Error(`No driver for service "${name}"`);
+      await ensureStarted(driver);
+    },
+
+    async stopByName(name) {
+      const driver = byName.get(name);
+      if (!driver) throw new Error(`No driver for service "${name}"`);
+      await driver.stop();
+      started.delete(name);
+    },
   };
 }
 
