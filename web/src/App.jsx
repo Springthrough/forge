@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { useProjects } from './hooks/useProjects.js';
 import TabBar from './components/TabBar.jsx';
 import OverviewTab from './components/OverviewTab.jsx';
+import ProjectTab from './components/ProjectTab.jsx';
 
 export default function App() {
   const projects = useProjects();
   const [activeTab, setActiveTab] = useState('overview');
+
+  const activeProject = projects.find(p => p.name === activeTab);
 
   return (
     <div className="app">
@@ -14,7 +17,7 @@ export default function App() {
         {activeTab === 'overview' ? (
           <OverviewTab projects={projects} onOpenProject={setActiveTab} />
         ) : (
-          <div className="empty-state">Project tab — Task 5</div>
+          <ProjectTab project={activeProject} />
         )}
       </div>
     </div>
