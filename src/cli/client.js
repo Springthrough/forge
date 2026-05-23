@@ -41,5 +41,5 @@ module.exports = {
       options: { ...(replicaSet ? { replicaSet: true } : {}) },
     }),
   removeInstance:  (key)             => call('DELETE', `/api/services/instances/${enc(key)}`),
-  configureInstance: (key, options)  => call('PATCH',  `/api/services/instances/${enc(key)}`, { options }),
+  configureInstance: (key, updates)  => call('PATCH',  `/api/services/instances/${enc(key)}`, updates),
 };

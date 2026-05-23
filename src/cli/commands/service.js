@@ -87,7 +87,7 @@ module.exports = function registerService(program) {
       const updates = {};
       if (opts.port !== undefined) updates.port = opts.port;
       if (opts.replicaSet !== undefined) updates.options = { replicaSet: opts.replicaSet };
-      const result = await client.configureInstance(key, updates.options ?? {});
+      const result = await client.configureInstance(key, updates);
       if (result.error) {
         console.error(chalk.red(result.error));
         process.exit(1);

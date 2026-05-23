@@ -120,6 +120,57 @@ When project B extends project A via `forge extend`, it inherits A's service dec
 
 See [docs/multi-project.md](docs/multi-project.md) for a full walkthrough of this pattern.
 
+## Named Service Instances
+
+By default, forge runs one container per service type on the well-known port. You can add named instances to run multiple configurations side by side — useful when some projects need MongoDB replica set mode (required for transactions/sessions) while others do not.
+
+### Managing instances
+
+```bash
+# Add a replica-set enabled MongoDB instance (port auto-assigned)
+forge service add mongo rs --replica-set
+
+# Add a second Postgres on a specific port
+forge service add postgres analytics --port 5433
+
+# List all custom instances
+forge service list
+
+# Update an instance's options
+forge service configure mongo rs --replica-set
+
+# Remove an instance
+forge service remove mongo rs
+```
+
+### Referencing an instance in a project
+
+In `.forge/config.json`, use `"type:instance"` as the service key:
+
+```json
+{
+  "name": "sai",
+  "services": {
+    "mongo:rs": {
+      "db": "sai",
+      "env": "MONGODB_URL"
+    }
+  }
+}
+```
+
+The connection string written to `.env.forge` will include `?replicaSet=rs0` automatically when the instance was created with `--replica-set`.
+
+### MongoDB replica set (transactions and sessions)
+
+A single-node replica set satisfies Mongo's requirement for multi-document transactions and change streams without the overhead of a real multi-member replica set:
+
+```bash
+forge service add mongo rs --replica-set
+```
+
+forge starts the container with `--replSet rs0 --bind_ip_all` and runs `rs.initiate()` automatically after the container is healthy.
+
 ## Configuration reference
 
 `forge init` creates `.forge/config.json` at the project root. Example:
