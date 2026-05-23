@@ -1,0 +1,228 @@
+:root {
+  --bg-base:       #0d1117;
+  --bg-surface:    #161b22;
+  --bg-overlay:    #21262d;
+  --border:        #30363d;
+  --text-primary:  #f0f6fc;
+  --text-secondary:#8b949e;
+  --accent:        #58a6ff;
+  --green:         #3fb950;
+  --red:           #f85149;
+  --yellow:        #d29922;
+  --font-mono:     'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── App shell ─────────────────────────────────────────── */
+.app { display: flex; flex-direction: column; height: 100vh; }
+.tab-content { flex: 1; overflow: auto; }
+
+/* ── Tab bar ────────────────────────────────────────────── */
+.tab-bar {
+  display: flex;
+  align-items: flex-end;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  padding: 0 12px;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.tab {
+  padding: 8px 16px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  background: none;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-top: 2px solid transparent;
+  cursor: pointer;
+  border-radius: 4px 4px 0 0;
+}
+.tab:hover { color: var(--text-primary); }
+.tab--active {
+  color: var(--text-primary);
+  background: var(--bg-base);
+  border-color: var(--border);
+  border-top-color: var(--accent);
+  border-bottom-color: var(--bg-base);
+  margin-bottom: -1px;
+}
+
+/* ── Section label ──────────────────────────────────────── */
+.section-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 12px;
+}
+
+/* ── Buttons ────────────────────────────────────────────── */
+.btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.btn:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+.btn--sm { font-size: 9px; padding: 2px 8px; }
+.btn--success { color: var(--green); }
+.btn--success:hover { border-color: var(--green); }
+.btn--danger { color: var(--red); }
+.btn--danger:hover { border-color: var(--red); }
+.btn--outline { color: var(--accent); }
+.btn--outline:hover { border-color: var(--accent); }
+
+/* ── Badge ──────────────────────────────────────────────── */
+.badge {
+  font-size: 9px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.badge--green  { background: #1f6329; color: var(--green); }
+.badge--red    { background: #6e1a1a; color: var(--red); }
+.badge--yellow { background: #3d2a00; color: var(--yellow); }
+.badge--grey   { background: var(--bg-overlay); color: var(--text-secondary); }
+
+/* ── Overview ───────────────────────────────────────────── */
+.overview {
+  display: grid;
+  grid-template-columns: 1fr 240px;
+  gap: 20px;
+  padding: 20px;
+  height: 100%;
+  overflow: auto;
+  align-content: start;
+}
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+/* ── Project card ───────────────────────────────────────── */
+.project-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.project-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.project-card__name  { font-size: 13px; font-weight: 600; }
+.project-card__path  { font-size: 10px; color: var(--text-secondary); }
+.project-card__procs { display: flex; flex-wrap: wrap; gap: 8px; font-size: 10px; }
+.process-dot         { display: flex; align-items: center; gap: 3px; color: var(--text-secondary); }
+
+/* ── Services panel ─────────────────────────────────────── */
+.services-list {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.service-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  font-size: 11px;
+  border-bottom: 1px solid var(--bg-overlay);
+}
+.service-row:last-child { border-bottom: none; }
+
+/* ── Project tab ────────────────────────────────────────── */
+.project-tab { display: flex; flex-direction: column; height: 100%; }
+.project-tab__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.project-tab__title { display: flex; align-items: baseline; gap: 10px; }
+.project-tab__name  { font-size: 14px; font-weight: 600; }
+.project-tab__path  { font-size: 10px; color: var(--text-secondary); }
+.project-tab__actions { display: flex; gap: 8px; }
+.process-list {
+  flex: 1;
+  overflow: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Process panel ──────────────────────────────────────── */
+.process-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.process-panel__header {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.process-panel__header:hover { background: var(--bg-overlay); }
+.drag-handle {
+  color: var(--border);
+  font-size: 16px;
+  cursor: grab;
+  line-height: 1;
+  padding: 0 2px;
+}
+.drag-handle:active { cursor: grabbing; }
+.status-dot { font-size: 10px; flex-shrink: 0; }
+.process-panel__name { font-size: 12px; font-weight: 600; flex: 1; }
+.process-panel__meta { font-size: 10px; color: var(--text-secondary); white-space: nowrap; }
+.process-panel__controls { display: flex; gap: 6px; margin-left: auto; }
+.chevron { font-size: 11px; color: var(--text-secondary); flex-shrink: 0; }
+.process-panel__body {
+  border-top: 1px solid var(--bg-overlay);
+  height: 220px;
+  background: var(--bg-base);
+}
+
+/* ── Terminal ────────────────────────────────────────────── */
+.terminal-wrap { width: 100%; height: 100%; padding: 4px; }
+/* xterm.js injects its own stylesheet; we just size the container */
+.terminal-wrap .xterm { height: 100%; }
+
+/* ── Empty state ─────────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
