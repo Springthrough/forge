@@ -8,6 +8,7 @@ const { writeEnvFile, ensureGitignored } = require('../env-file');
 const { writeClaude, hasForgeSection } = require('../claude-md');
 
 function confirm(question) {
+  if (!process.stdin.isTTY) return Promise.resolve(false);
   return new Promise(resolve => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
     rl.question(question, answer => {

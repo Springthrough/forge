@@ -11,7 +11,7 @@ function generateForgeSection(config) {
   const rows = processes.map(p => `| ${p.name} | \`forge logs ${p.name}\` |`).join('\n');
 
   const servicesPart = services.length
-    ? `\n**Services** (${services.join(', ')})\n- \`forge service\` — check health\n- \`forge service up <name>\` / \`forge service down <name>\``
+    ? `\n**Services** (${services.join(', ')})\n- \`forge service\` — check health\n- \`forge service up <name>\` / \`forge service down <name>\`\n`
     : '';
 
   const processesPart = processes.length
