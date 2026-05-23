@@ -16,17 +16,19 @@ async function isDaemonRunning() {
   try { await call('GET', '/api/health'); return true; } catch { return false; }
 }
 
+const enc = encodeURIComponent;
+
 module.exports = {
   isDaemonRunning,
   health:          ()                => call('GET',    '/api/health'),
   getProjects:     ()                => call('GET',    '/api/projects'),
-  getProject:      (name)            => call('GET',    `/api/projects/${name}`),
+  getProject:      (name)            => call('GET',    `/api/projects/${enc(name)}`),
   registerProject: (config)          => call('POST',   '/api/projects/register', config),
-  removeProject:   (name)            => call('DELETE', `/api/projects/${name}`),
-  syncProject:     (name, body)      => call('POST',   `/api/projects/${name}/sync`, body),
+  removeProject:   (name)            => call('DELETE', `/api/projects/${enc(name)}`),
+  syncProject:     (name, body)      => call('POST',   `/api/projects/${enc(name)}/sync`, body),
   getServices:     ()                => call('GET',    '/api/services'),
-  getProcesses:    (name)            => call('GET',    `/api/projects/${name}/processes`),
-  upProject:       (name)            => call('POST',   `/api/projects/${name}/processes/up`),
-  downProject:     (name)            => call('POST',   `/api/projects/${name}/processes/down`),
-  restartProcess:  (name, proc)      => call('POST',   `/api/projects/${name}/processes/${proc}/restart`),
+  getProcesses:    (name)            => call('GET',    `/api/projects/${enc(name)}/processes`),
+  upProject:       (name)            => call('POST',   `/api/projects/${enc(name)}/processes/up`),
+  downProject:     (name)            => call('POST',   `/api/projects/${enc(name)}/processes/down`),
+  restartProcess:  (name, proc)      => call('POST',   `/api/projects/${enc(name)}/processes/${proc}/restart`),
 };
