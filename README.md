@@ -375,6 +375,14 @@ npm run dev:web               # Vite dev server at localhost:5173
 
 The Vite dev server proxies API and WebSocket requests to the running daemon at port 2525.
 
+### Keeping the `forge` CLI in sync
+
+The `forge` command resolves to the globally installed package, not the local source. After pulling changes, if `forge --version` shows a stale version, reinstall from your local checkout:
+
+```bash
+npm install -g .
+```
+
 ## License
 
 MIT
