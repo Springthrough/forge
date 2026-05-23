@@ -24,6 +24,12 @@ function writeEnvFile(projectPath, envFilename, allocations, config) {
     }
   }
 
+  for (const proc of config.processes ?? []) {
+    if (proc.portExportEnv && allocations.ports?.[proc.name] != null) {
+      lines.push(`${proc.portExportEnv}=${allocations.ports[proc.name]}`);
+    }
+  }
+
   fs.writeFileSync(path.join(projectPath, envFilename), lines.join('\n') + '\n');
 }
 
