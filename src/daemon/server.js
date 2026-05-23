@@ -13,7 +13,7 @@ const { createProcessRoutes } = require('./api/processes');
 const path = require('path');
 const fs   = require('fs');
 
-function createServer({ registry, portAllocator, serviceManager, processManager } = {}) {
+function createServer({ registry, portAllocator, serviceManager, processManager, instanceStore } = {}) {
   const reg = registry ?? createRegistry();
   const alloc = portAllocator ?? createPortAllocator();
   const svcMgr = serviceManager ?? createServiceManager([
@@ -31,7 +31,7 @@ function createServer({ registry, portAllocator, serviceManager, processManager 
   app.use(express.json());
   app.use('/api/health', createHealthRoutes());
   app.use('/api/projects', createProjectRoutes({ registry: reg, portAllocator: alloc, serviceManager: svcMgr }));
-  app.use('/api/services', createServicesRoutes({ serviceManager: svcMgr, registry: reg }));
+  app.use('/api/services', createServicesRoutes({ serviceManager: svcMgr, registry: reg, instanceStore }));
   app.use('/api/projects/:name/processes', createProcessRoutes({ registry: reg, processManager: pm, serviceManager: svcMgr }));
 
   const server = http.createServer(app);
