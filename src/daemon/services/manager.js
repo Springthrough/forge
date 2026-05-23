@@ -14,9 +14,15 @@ function createServiceManager(drivers = []) {
     }
     if (!healthy) throw new Error(`Service "${driver.name}" did not become healthy`);
     started.add(driver.name);
+    if (driver.postStart) await driver.postStart();
   }
 
   return {
+    registerDriver(driver) {
+      if (byName.has(driver.name)) throw new Error(`Driver "${driver.name}" is already registered`);
+      byName.set(driver.name, driver);
+    },
+
     restoreFromRegistry(projects) {
       for (const driver of byName.values()) {
         driver.restoreFromRegistry(projects);

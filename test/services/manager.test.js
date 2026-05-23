@@ -88,3 +88,48 @@ test('provision with empty services config is a no-op', async () => {
   expect(mongo.start).not.toHaveBeenCalled();
   expect(result).toEqual({});
 });
+
+test('provision calls postStart after driver becomes healthy', async () => {
+  const mongo = {
+    ...makeMockDriver('mongo'),
+    postStart: jest.fn().mockResolvedValue(undefined),
+  };
+  const manager = createServiceManager([mongo]);
+  await manager.provision('sai', { mongo: {} });
+  expect(mongo.postStart).toHaveBeenCalledTimes(1);
+});
+
+test('provision does not call postStart again if driver already started', async () => {
+  const mongo = {
+    ...makeMockDriver('mongo'),
+    postStart: jest.fn().mockResolvedValue(undefined),
+  };
+  const manager = createServiceManager([mongo]);
+  await manager.provision('sai', { mongo: {} });
+  await manager.provision('cleome', { mongo: {} });
+  expect(mongo.postStart).toHaveBeenCalledTimes(1);
+});
+
+test('provision works for named instance keys like "mongo:rs"', async () => {
+  const mongoRs = makeMockDriver('mongo:rs');
+  const manager = createServiceManager([mongoRs]);
+  const result = await manager.provision('sai', { 'mongo:rs': { db: 'sai' } });
+  expect(mongoRs.start).toHaveBeenCalledTimes(1);
+  expect(result).toEqual({ 'mongo:rs': 'mongo:rs://localhost/testdb' });
+});
+
+test('registerDriver adds a new driver that can be used in provision', async () => {
+  const manager = createServiceManager([]);
+  const mongo = makeMockDriver('mongo:rs');
+  manager.registerDriver(mongo);
+  const result = await manager.provision('sai', { 'mongo:rs': {} });
+  expect(mongo.start).toHaveBeenCalledTimes(1);
+  expect(result['mongo:rs']).toBe('mongo:rs://localhost/testdb');
+});
+
+test('registerDriver throws if a driver with that name is already registered', () => {
+  const mongo = makeMockDriver('mongo');
+  const manager = createServiceManager([mongo]);
+  expect(() => manager.registerDriver(makeMockDriver('mongo')))
+    .toThrow('Driver "mongo" is already registered');
+});
