@@ -1,4 +1,4 @@
-const { ensureContainerRunning, checkTcpHealth } = require('../docker');
+const { ensureContainerRunning, stopContainer, checkTcpHealth } = require('../docker');
 
 const NAME = 'mongo';
 const CONTAINER_NAME = 'forge-mongo';
@@ -26,6 +26,10 @@ function createMongoDriver() {
     connectionString(projectName, cfg) {
       const db = cfg?.db || projectName;
       return `mongodb://localhost:${PORT}/${db}`;
+    },
+
+    async stop() {
+      await stopContainer(CONTAINER_NAME);
     },
 
     // Destructive DB cleanup is deferred to a future plan.

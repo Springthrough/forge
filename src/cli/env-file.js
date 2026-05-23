@@ -27,4 +27,15 @@ function writeEnvFile(projectPath, envFilename, allocations, config) {
   fs.writeFileSync(path.join(projectPath, envFilename), lines.join('\n') + '\n');
 }
 
-module.exports = { writeEnvFile };
+function ensureGitignored(projectPath, envFilename) {
+  if (!envFilename) return 'no-file';
+  const gitignorePath = path.join(projectPath, '.gitignore');
+  if (!fs.existsSync(gitignorePath)) return 'no-gitignore';
+  const content = fs.readFileSync(gitignorePath, 'utf8');
+  if (content.split('\n').map(l => l.trim()).includes(envFilename)) return 'already';
+  const appended = content.endsWith('\n') ? content + envFilename + '\n' : content + '\n' + envFilename + '\n';
+  fs.writeFileSync(gitignorePath, appended);
+  return 'added';
+}
+
+module.exports = { writeEnvFile, ensureGitignored };

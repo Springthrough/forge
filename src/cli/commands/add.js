@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
 const client = require('../client');
-const { writeEnvFile } = require('../env-file');
+const { writeEnvFile, ensureGitignored } = require('../env-file');
 
 module.exports = function registerAdd(program) {
   program
@@ -48,7 +48,13 @@ module.exports = function registerAdd(program) {
         }
       }
       if (envFile !== false) {
-        console.log(chalk.dim(`\n  Wrote ${envFile}`));
+        const gitignoreResult = ensureGitignored(cwd, envFile);
+        if (gitignoreResult === 'added') console.log(chalk.dim(`\n  Wrote ${envFile} (added to .gitignore)`));
+        else if (gitignoreResult === 'no-gitignore') console.log(chalk.dim(`\n  Wrote ${envFile}`) + chalk.yellow(` — add "${envFile}" to your .gitignore`));
+        else console.log(chalk.dim(`\n  Wrote ${envFile}`));
+      }
+      for (const w of result.warnings ?? []) {
+        console.warn(chalk.yellow(`\n  ⚠ ${w}`));
       }
     });
 };

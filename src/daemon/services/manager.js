@@ -3,7 +3,8 @@ function createServiceManager(drivers = []) {
   const started = new Set();
 
   async function ensureStarted(driver, opts) {
-    if (started.has(driver.name)) return;
+    if (started.has(driver.name) && await driver.healthCheck()) return;
+    started.delete(driver.name);
     await driver.start();
     const { pollInterval = 1000, maxAttempts = 30 } = opts ?? {};
     let healthy = false;
@@ -41,6 +42,31 @@ function createServiceManager(drivers = []) {
       for (const serviceName of Object.keys(servicesConfig ?? {})) {
         const driver = byName.get(serviceName);
         if (driver) await driver.deprovision(projectName);
+      }
+    },
+
+    getCatalog() {
+      return [...byName.keys()];
+    },
+
+    async ensureServicesRunning(servicesConfig) {
+      for (const serviceName of Object.keys(servicesConfig ?? {})) {
+        const driver = byName.get(serviceName);
+        if (driver) await ensureStarted(driver);
+      }
+    },
+
+    async stopUnused(servicesConfig, allProjects, excludeProjectName) {
+      for (const serviceName of Object.keys(servicesConfig ?? {})) {
+        const driver = byName.get(serviceName);
+        if (!driver) continue;
+        const stillNeeded = Object.entries(allProjects).some(
+          ([name, project]) => name !== excludeProjectName && project.config?.services?.[serviceName]
+        );
+        if (!stillNeeded) {
+          await driver.stop();
+          started.delete(serviceName);
+        }
       }
     },
 

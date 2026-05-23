@@ -31,11 +31,16 @@ function createProcessManager({ ptySpawn } = {}) {
     if (buffer.length > MAX_BUFFER) buffer.splice(0, buffer.length - MAX_BUFFER);
   }
 
-  function startOne(projectName, proc, allocations, projectPath) {
+  function startOne(projectName, proc, allocations, projectPath, servicesConfig) {
     const k = key(projectName, proc.name);
     if (processes.get(k)?.status === 'running') return;
 
     const env = {};
+    for (const [svcName, url] of Object.entries(allocations?.services ?? {})) {
+      const envVar = (servicesConfig ?? {})[svcName]?.env;
+      if (envVar) env[envVar] = url;
+    }
+    Object.assign(env, proc.env ?? {});
     const port = allocations?.ports?.[proc.name];
     if (port !== undefined && proc.portEnv) env[proc.portEnv] = String(port);
 
@@ -83,9 +88,9 @@ function createProcessManager({ ptySpawn } = {}) {
   }
 
   return {
-    up(projectName, processConfigs, allocations, projectPath) {
+    up(projectName, processConfigs, allocations, projectPath, servicesConfig) {
       for (const proc of processConfigs ?? []) {
-        startOne(projectName, proc, allocations ?? {}, projectPath);
+        startOne(projectName, proc, allocations ?? {}, projectPath, servicesConfig ?? {});
       }
     },
 
@@ -97,19 +102,19 @@ function createProcessManager({ ptySpawn } = {}) {
       }
     },
 
-    startProcess(projectName, processName, processConfigs, allocations, projectPath) {
+    startProcess(projectName, processName, processConfigs, allocations, projectPath, servicesConfig) {
       const proc = (processConfigs ?? []).find(p => p.name === processName);
-      if (proc) startOne(projectName, proc, allocations ?? {}, projectPath);
+      if (proc) startOne(projectName, proc, allocations ?? {}, projectPath, servicesConfig ?? {});
     },
 
     stopProcess(projectName, processName) {
       killOne(projectName, processName);
     },
 
-    restart(projectName, processName, processConfigs, allocations, projectPath) {
+    restart(projectName, processName, processConfigs, allocations, projectPath, servicesConfig) {
       killOne(projectName, processName);
       const proc = (processConfigs ?? []).find(p => p.name === processName);
-      if (proc) startOne(projectName, proc, allocations ?? {}, projectPath);
+      if (proc) startOne(projectName, proc, allocations ?? {}, projectPath, servicesConfig ?? {});
     },
 
     getStatuses(projectName, processConfigs) {

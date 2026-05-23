@@ -47,4 +47,11 @@ function checkTcpHealth(host, port) {
   });
 }
 
-module.exports = { ensureContainerRunning, checkTcpHealth };
+async function stopContainer(name) {
+  const containers = await docker.listContainers({ all: true });
+  const existing = containers.find(c => c.Names.includes(`/${name}`));
+  if (!existing || existing.State !== 'running') return;
+  await docker.getContainer(existing.Id).stop();
+}
+
+module.exports = { ensureContainerRunning, stopContainer, checkTcpHealth };

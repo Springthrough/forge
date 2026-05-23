@@ -23,6 +23,7 @@ function generatePlist(daemonScript) {
   <key>EnvironmentVariables</key>
   <dict>
     <key>FORGE_PORT</key><string>${FORGE_PORT}</string>
+    <key>PATH</key><string>${process.env.PATH}</string>
   </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>

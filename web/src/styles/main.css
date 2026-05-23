@@ -217,6 +217,37 @@ body {
 /* xterm.js injects its own stylesheet; we just size the container */
 .terminal-wrap .xterm { height: 100%; }
 
+/* ── Services toggle (project tab) ──────────────────────── */
+.services-section {
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.services-toggle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.services-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.services-toggle-name {
+  font-size: 12px;
+  font-weight: 600;
+  width: 60px;
+}
+.services-toggle-env {
+  font-size: 10px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
 /* ── Empty state ─────────────────────────────────────────── */
 .empty-state {
   display: flex;

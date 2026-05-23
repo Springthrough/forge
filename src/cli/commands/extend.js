@@ -129,9 +129,11 @@ async function runExtend(targetPath, cwd) {
   const updated = buildExtendedConfig(currentConfig, sourceConfig, targetDir, cwd);
   const addedCount = updated.processes.length - (currentConfig.processes ?? []).length;
   const skippedCount = (sourceConfig.processes ?? []).length - addedCount;
+  const prevServiceKeys = new Set(Object.keys(currentConfig.services ?? {}));
+  const addedServices = Object.keys(updated.services ?? {}).filter(s => !prevServiceKeys.has(s));
 
   fs.writeFileSync(currentConfigPath, JSON.stringify(updated, null, 2) + '\n');
-  return { updated, addedCount, skippedCount, sourceConfig };
+  return { updated, addedCount, skippedCount, sourceConfig, addedServices };
 }
 
 module.exports = function registerExtend(program) {
@@ -141,7 +143,7 @@ module.exports = function registerExtend(program) {
     .action(async (targetPath) => {
       const cwd = process.cwd();
       try {
-        const { addedCount, skippedCount, sourceConfig, updated } =
+        const { addedCount, skippedCount, sourceConfig, updated, addedServices } =
           await runExtend(targetPath, cwd);
 
         console.log(chalk.green(
@@ -157,8 +159,15 @@ module.exports = function registerExtend(program) {
         if (skippedCount > 0) {
           console.log(chalk.dim(`\n  Skipped ${skippedCount} already-present process(es)`));
         }
-        if (addedCount === 0 && skippedCount === 0) {
-          console.log(chalk.dim('\n  No processes to add from target directory'));
+        if (addedServices.length > 0) {
+          console.log('\n  Merged services:');
+          for (const svc of addedServices) {
+            const envVar = updated.services[svc]?.env;
+            console.log(chalk.dim(`    ${svc}${envVar ? `  →  ${envVar}` : '  (no env key — add one)'}`));
+          }
+        }
+        if (addedCount === 0 && skippedCount === 0 && addedServices.length === 0) {
+          console.log(chalk.dim('\n  Nothing new to add from target directory'));
         }
         console.log('');
         console.log('  Run ' + chalk.dim('forge sync') + ' to apply if already registered.');

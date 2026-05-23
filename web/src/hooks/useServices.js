@@ -7,7 +7,12 @@ export function useServices() {
     function poll() {
       fetch('/api/services')
         .then(r => r.json())
-        .then(data => { if (alive) setServices(data); })
+        .then(data => {
+          if (!alive) return;
+          const obj = {};
+          for (const svc of (Array.isArray(data) ? data : [])) obj[svc.name] = svc;
+          setServices(obj);
+        })
         .catch(() => {});
     }
     poll();

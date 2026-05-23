@@ -18,6 +18,7 @@ require('./commands/extend')(program);
 require('./commands/up')(program);
 require('./commands/down')(program);
 require('./commands/open')(program);
+require('./commands/logs')(program);
 require('./commands/version')(program);
 
 program.parseAsync(process.argv).catch(err => {

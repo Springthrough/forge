@@ -29,8 +29,8 @@ function createServer({ registry, portAllocator, serviceManager, processManager 
   app.use(express.json());
   app.use('/api/health', createHealthRoutes());
   app.use('/api/projects', createProjectRoutes({ registry: reg, portAllocator: alloc, serviceManager: svcMgr }));
-  app.use('/api/services', createServicesRoutes({ serviceManager: svcMgr }));
-  app.use('/api/projects/:name/processes', createProcessRoutes({ registry: reg, processManager: pm }));
+  app.use('/api/services', createServicesRoutes({ serviceManager: svcMgr, registry: reg }));
+  app.use('/api/projects/:name/processes', createProcessRoutes({ registry: reg, processManager: pm, serviceManager: svcMgr }));
 
   const server = http.createServer(app);
 
@@ -76,7 +76,7 @@ function createServer({ registry, portAllocator, serviceManager, processManager 
         if (msg.type === 'resize') pm.resize(projectName, processName, msg.cols, msg.rows);
         if (msg.type === 'start') {
           const p = reg.get(projectName);
-          if (p) pm.startProcess(projectName, processName, p.config?.processes ?? [], p.allocations ?? {}, p.path);
+          if (p) pm.startProcess(projectName, processName, p.config?.processes ?? [], p.allocations ?? {}, p.path, p.config?.services ?? {});
         }
         if (msg.type === 'stop') pm.stopProcess(projectName, processName);
       } catch (err) {

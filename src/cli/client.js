@@ -31,4 +31,5 @@ module.exports = {
   upProject:       (name)            => call('POST',   `/api/projects/${enc(name)}/processes/up`),
   downProject:     (name)            => call('POST',   `/api/projects/${enc(name)}/processes/down`),
   restartProcess:  (name, proc)      => call('POST',   `/api/projects/${enc(name)}/processes/${proc}/restart`),
+  getLogs:         (name, proc, n)   => call('GET',    `/api/projects/${enc(name)}/processes/${proc}/logs${n ? `?lines=${n}` : ''}`),
 };

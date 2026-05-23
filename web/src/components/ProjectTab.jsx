@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -25,9 +25,41 @@ function mergeOrder(stored, processes) {
   return valid;
 }
 
-export default function ProjectTab({ project }) {
+function useServicesSection(project) {
+  const [catalog, setCatalog] = useState([]);
+  const [busy, setBusy] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/services/catalog').then(r => r.json()).then(setCatalog).catch(() => {});
+  }, []);
+
+  const enabled = project?.config?.services ?? {};
+
+  const toggle = useCallback(async (service) => {
+    if (busy) return;
+    setBusy(service);
+    try {
+      if (enabled[service]) {
+        await fetch(`/api/projects/${encodeURIComponent(project.name)}/services/${service}`, { method: 'DELETE' });
+      } else {
+        await fetch(`/api/projects/${encodeURIComponent(project.name)}/services`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ service }),
+        });
+      }
+    } finally {
+      setBusy(null);
+    }
+  }, [project?.name, enabled, busy]);
+
+  return { catalog, enabled, busy, toggle };
+}
+
+export default function ProjectTab({ project, onProjectUpdate }) {
   const processes    = useProjectProcesses(project?.name);
   const [order, setOrder] = useState([]);
+  const { catalog, enabled, busy, toggle } = useServicesSection(project);
 
   useEffect(() => {
     if (!project || processes.length === 0) return;
@@ -91,6 +123,34 @@ export default function ProjectTab({ project }) {
           </div>
         </SortableContext>
       </DndContext>
+
+      {catalog.length > 0 && (
+        <div className="services-section">
+          <div className="section-label">Shared Services</div>
+          <div className="services-toggle-list">
+            {catalog.map(svc => {
+              const isEnabled = !!enabled[svc];
+              const isBusy = busy === svc;
+              const envVar = enabled[svc]?.env;
+              return (
+                <div key={svc} className="services-toggle-row">
+                  <span className="services-toggle-name">{svc}</span>
+                  {isEnabled && envVar && (
+                    <span className="services-toggle-env">{envVar}</span>
+                  )}
+                  <button
+                    className={`btn btn--sm ${isEnabled ? 'btn--danger' : 'btn--outline'}`}
+                    onClick={() => toggle(svc)}
+                    disabled={isBusy}
+                  >
+                    {isBusy ? '…' : isEnabled ? 'disable' : 'enable'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

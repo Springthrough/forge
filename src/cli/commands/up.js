@@ -35,8 +35,14 @@ module.exports = function registerUp(program) {
             console.log(chalk.dim('No projects registered. Run: forge add'));
             return;
           }
-          for (const project of projects) {
-            await startProject(project);
+          const cwd = process.cwd();
+          const cwdProject = projects.find(p => p.path === cwd);
+          if (cwdProject) {
+            await startProject(cwdProject);
+          } else {
+            for (const project of projects) {
+              await startProject(project);
+            }
           }
         }
       } catch (err) {

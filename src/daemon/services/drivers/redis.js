@@ -1,4 +1,4 @@
-const { ensureContainerRunning, checkTcpHealth } = require('../docker');
+const { ensureContainerRunning, stopContainer, checkTcpHealth } = require('../docker');
 
 const NAME = 'redis';
 const CONTAINER_NAME = 'forge-redis';
@@ -46,6 +46,10 @@ function createRedisDriver() {
       const n = dbNumbers.get(projectName);
       if (n == null) throw new Error(`No Redis allocation for project "${projectName}"`);
       return `redis://localhost:${PORT}/${n}`;
+    },
+
+    async stop() {
+      await stopContainer(CONTAINER_NAME);
     },
 
     async deprovision(projectName) {

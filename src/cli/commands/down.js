@@ -25,6 +25,18 @@ module.exports = function registerDown(program) {
           console.log(chalk.dim('No projects registered.'));
           return;
         }
+        const cwd = process.cwd();
+        const cwdProject = projects.find(p => p.path === cwd);
+        if (cwdProject) {
+          try {
+            await client.downProject(cwdProject.name);
+            console.log(chalk.green(`✓ ${cwdProject.name}`) + chalk.dim('  stopped'));
+          } catch (err) {
+            console.error(chalk.red(err.message));
+            process.exit(1);
+          }
+          return;
+        }
         const errors = [];
         for (const project of projects) {
           try {

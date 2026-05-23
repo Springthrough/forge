@@ -3,34 +3,68 @@ const client = require('../client');
 
 module.exports = function registerEnv(program) {
   program
-    .command('env <project>')
-    .description('Print allocated env vars for a project')
+    .command('env [project]')
+    .description('Show env vars forge injects for a project (defaults to CWD project)')
     .action(async (projectName) => {
       if (!await client.isDaemonRunning()) {
         console.error(chalk.red('Forge daemon is not running.'));
         process.exit(1);
       }
+
+      let resolvedName = projectName;
+      if (!resolvedName) {
+        const projects = await client.getProjects().catch(() => []);
+        const cwd = process.cwd();
+        const match = projects.find(p => p.path === cwd);
+        if (!match) {
+          console.error(chalk.red('No project found for current directory. Pass a project name or run from a registered project.'));
+          process.exit(1);
+        }
+        resolvedName = match.name;
+      }
+
       let project;
       try {
-        project = await client.getProject(projectName);
+        project = await client.getProject(resolvedName);
       } catch {
-        console.error(chalk.red(`Project "${projectName}" not found`));
+        console.error(chalk.red(`Project "${resolvedName}" not found`));
         process.exit(1);
       }
+
       const config = project.config ?? {};
       const alloc = project.allocations ?? {};
+
+      const serviceLines = [];
       for (const [svc, url] of Object.entries(alloc.services ?? {})) {
         const svcCfg = config.services?.[svc] ?? {};
-        if (svcCfg.env) console.log(`${svcCfg.env}=${url}`);
-        if (svc === 'redis' && svcCfg.prefix && svcCfg.prefixEnv) {
-          console.log(`${svcCfg.prefixEnv}=${svcCfg.prefix}`);
+        if (svcCfg.env) {
+          serviceLines.push(`  ${chalk.cyan(svcCfg.env)}=${url}`);
+        } else {
+          serviceLines.push(`  ${chalk.yellow(`# ${svc} has no "env" key — connection string not injected`)}`);
         }
       }
+
+      const processLines = [];
       for (const proc of config.processes ?? []) {
         const port = alloc.ports?.[proc.name];
         if (proc.portEnv && port != null) {
-          console.log(`${proc.portEnv}=${port}  # ${proc.name}`);
+          processLines.push(`  ${chalk.cyan(proc.portEnv)}=${port}  ${chalk.dim(`# ${proc.name}`)}`);
         }
+      }
+
+      if (serviceLines.length === 0 && processLines.length === 0) {
+        console.log(chalk.dim('No env vars allocated for this project.'));
+        return;
+      }
+
+      if (serviceLines.length > 0) {
+        console.log(chalk.bold('Services:'));
+        for (const l of serviceLines) console.log(l);
+      }
+      if (processLines.length > 0) {
+        if (serviceLines.length > 0) console.log('');
+        console.log(chalk.bold('Processes:'));
+        for (const l of processLines) console.log(l);
       }
     });
 };
