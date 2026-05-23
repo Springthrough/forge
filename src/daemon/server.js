@@ -53,18 +53,18 @@ function createServer({ registry, portAllocator, serviceManager, processManager 
       return;
     }
 
+    // Subscribe before reading snapshot to avoid missing events that fire between the two
+    const relay = (event) => {
+      if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(event));
+    };
+    pm.subscribe(projectName, processName, relay);
+
     // Send current status and buffered output
     const status = pm.isRunning(projectName, processName) ? 'running' : 'stopped';
     ws.send(JSON.stringify({ type: 'status', status }));
 
     const buffered = pm.getBuffer(projectName, processName).join('\r\n');
     if (buffered) ws.send(JSON.stringify({ type: 'output', data: buffered }));
-
-    // Subscribe to future events
-    const relay = (event) => {
-      if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(event));
-    };
-    pm.subscribe(projectName, processName, relay);
 
     ws.on('message', (raw) => {
       try {
@@ -89,10 +89,13 @@ function createServer({ registry, portAllocator, serviceManager, processManager 
 }
 
 if (require.main === module) {
-  const { server } = createServer();
+  const { server, processManager } = createServer();
   server.listen(FORGE_PORT, () => {
     console.log(`Forge daemon listening on port ${FORGE_PORT}`);
   });
+  const shutdown = () => { processManager.killAll(); server.close(() => process.exit(0)); };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT',  shutdown);
 }
 
 module.exports = { createServer };
