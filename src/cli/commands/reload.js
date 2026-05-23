@@ -4,6 +4,7 @@ const path = require('path');
 const chalk = require('chalk');
 const client = require('../client');
 const { writeEnvFile, ensureGitignored } = require('../env-file');
+const { writeClaude, hasForgeSection } = require('../claude-md');
 
 module.exports = function registerReload(program) {
   program
@@ -43,6 +44,15 @@ module.exports = function registerReload(program) {
       }
       for (const w of result.warnings ?? []) {
         console.warn(chalk.yellow(`\n  ⚠ ${w}`));
+      }
+
+      if (hasForgeSection(cwd)) {
+        try {
+          writeClaude(cwd, config);
+          console.log(chalk.dim('  Updated CLAUDE.md'));
+        } catch (err) {
+          console.warn(chalk.yellow(`  ⚠ Could not update CLAUDE.md: ${err.message}`));
+        }
       }
     });
 };
