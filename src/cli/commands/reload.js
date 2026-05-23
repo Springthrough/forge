@@ -42,6 +42,9 @@ module.exports = function registerReload(program) {
         else if (gitignoreResult === 'no-gitignore') console.log(chalk.dim(`  Wrote ${envFile}`) + chalk.yellow(` — add "${envFile}" to your .gitignore`));
         else console.log(chalk.dim(`  Wrote ${envFile}`));
       }
+      for (const proc of config.processes ?? []) {
+        if (proc.envFile) ensureGitignored(cwd, proc.envFile);
+      }
       for (const w of result.warnings ?? []) {
         console.warn(chalk.yellow(`\n  ⚠ ${w}`));
       }

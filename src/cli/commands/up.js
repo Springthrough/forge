@@ -1,7 +1,7 @@
 // src/cli/commands/up.js
 const chalk = require('chalk');
 const client = require('../client');
-const { writeEnvFile } = require('../env-file');
+const { writeEnvFile, ensureGitignored } = require('../env-file');
 
 async function startProject(project) {
   if (project.config?.envFile !== false) {
@@ -11,6 +11,9 @@ async function startProject(project) {
       project.allocations,
       project.config
     );
+  }
+  for (const proc of project.config?.processes ?? []) {
+    if (proc.envFile) ensureGitignored(project.path, proc.envFile);
   }
   await client.upProject(project.name);
   console.log(chalk.green(`✓ ${project.name}`) + chalk.dim('  started'));
