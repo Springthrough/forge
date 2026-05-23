@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import Terminal from './Terminal.jsx';
 
 function formatUptime(s) {
   if (s < 60)   return `${s}s`;
@@ -71,9 +72,7 @@ export default function ProcessPanel({ projectName, process, allocations }) {
       </div>
       {expanded && (
         <div className="process-panel__body">
-          <div className="empty-state" style={{ fontSize: 10 }}>
-            Terminal — Task 6
-          </div>
+          <Terminal projectName={projectName} processName={process.name} />
         </div>
       )}
     </div>
