@@ -1,5 +1,7 @@
+const path = require('path');
 const chalk = require('chalk');
 const client = require('../client');
+const { parseEnvFile } = require('../../parse-env-file');
 
 module.exports = function registerEnv(program) {
   program
@@ -52,7 +54,22 @@ module.exports = function registerEnv(program) {
         }
       }
 
-      if (serviceLines.length === 0 && processLines.length === 0) {
+      const overrideLines = [];
+      for (const proc of config.processes ?? []) {
+        if (!proc.envFile) continue;
+        const absPath = path.resolve(project.path, proc.envFile);
+        const vars = parseEnvFile(absPath);
+        if (vars === null) {
+          overrideLines.push(`  ${chalk.dim(proc.name)}  ${chalk.dim(proc.envFile)}  ${chalk.yellow('✗  (file not found)')}`);
+        } else {
+          const keys = Object.keys(vars);
+          const keyInfo = keys.length > 0 ? `  ${chalk.dim(`[${keys.join(', ')}]`)}` : '';
+          overrideLines.push(`  ${chalk.dim(proc.name)}  ${chalk.dim(proc.envFile)}  ${chalk.green('✓')}${keyInfo}`);
+        }
+      }
+
+      const hasOutput = serviceLines.length > 0 || processLines.length > 0 || overrideLines.length > 0;
+      if (!hasOutput) {
         console.log(chalk.dim('No env vars allocated for this project.'));
         return;
       }
@@ -65,6 +82,11 @@ module.exports = function registerEnv(program) {
         if (serviceLines.length > 0) console.log('');
         console.log(chalk.bold('Processes:'));
         for (const l of processLines) console.log(l);
+      }
+      if (overrideLines.length > 0) {
+        if (serviceLines.length > 0 || processLines.length > 0) console.log('');
+        console.log(chalk.bold('Override files:'));
+        for (const l of overrideLines) console.log(l);
       }
     });
 };
