@@ -133,8 +133,8 @@ describe('WebSocket terminal streaming', () => {
       serviceManager: noopServiceManager,
       processManager: pm2,
     });
-    const p2 = await findFreePort();
-    await new Promise(resolve => srv2.listen(p2, resolve));
+    await new Promise(resolve => srv2.listen(0, resolve));
+    const p2 = srv2.address().port;
 
     // Use collector to capture messages from the moment the WS is created —
     // the server may send the initial status before the client 'open' fires.
