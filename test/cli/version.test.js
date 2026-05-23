@@ -42,12 +42,12 @@ describe('forge version', () => {
     expect(output).toContain('forge restart');
   });
 
-  test('shows stopped status when health response is missing version field', async () => {
+  test('shows running status without warning when health response is missing version field', async () => {
     client.health.mockResolvedValue({ ok: true });
     await runVersion();
     expect(logSpy).toHaveBeenCalledTimes(1);
     const output = logSpy.mock.calls[0][0];
-    expect(output).toContain('stopped');
+    expect(output).toContain('running');
     expect(output).not.toContain('⚠');
     expect(output).not.toContain('undefined');
   });
