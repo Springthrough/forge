@@ -13,6 +13,7 @@ require('./commands/remove')(program);
 require('./commands/sync')(program);
 require('./commands/env')(program);
 require('./commands/services')(program);
+require('./commands/service')(program);
 require('./commands/init')(program);
 require('./commands/extend')(program);
 require('./commands/up')(program);
