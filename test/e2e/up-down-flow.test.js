@@ -106,10 +106,16 @@ describe('up/down/restart flow', () => {
   });
 
   test('POST /down stops all processes and GET /processes shows stopped', async () => {
-    const { app, cleanup } = setup();
+    const { app, ptys, cleanup } = setup();
     try {
       await request(app).post('/api/projects/sai/processes/up').expect(200);
-      await request(app).post('/api/projects/sai/processes/down').expect(200);
+
+      const downRes = await request(app).post('/api/projects/sai/processes/down');
+      expect(downRes.status).toBe(200);
+      expect(downRes.body.ok).toBe(true);
+
+      // Verify PTYs were actually killed
+      expect(ptys.every(p => p.kill.mock.calls.length > 0)).toBe(true);
 
       const res = await request(app).get('/api/projects/sai/processes');
       expect(res.body.processes.every(p => p.status === 'stopped')).toBe(true);
