@@ -41,6 +41,13 @@ test('generateForgeSection is wrapped in markers', () => {
   expect(section).toContain('<!-- forge:end -->');
 });
 
+test('generateForgeSection handles empty processes array', () => {
+  const section = generateForgeSection({ processes: [], services: {} });
+  expect(section).toContain('<!-- forge:start -->');
+  expect(section).toContain('<!-- forge:end -->');
+  expect(section).not.toContain('forge logs');
+});
+
 test('hasForgeSection returns false when no CLAUDE.md exists', () => {
   expect(hasForgeSection(dir)).toBe(false);
 });
