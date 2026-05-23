@@ -1,35 +1,47 @@
-const { ensureContainerRunning, stopContainer, checkTcpHealth } = require('../docker');
+const { ensureContainerRunning, stopContainer, checkTcpHealth, execInContainer } = require('../docker');
 
-const NAME = 'mongo';
-const CONTAINER_NAME = 'forge-mongo';
+const DEFAULT_NAME = 'mongo';
+const DEFAULT_CONTAINER_NAME = 'forge-mongo';
 const IMAGE = 'mongo:7';
-const PORT = 27017;
+const DEFAULT_PORT = 27017;
 
-function createMongoDriver() {
+function createMongoDriver({ name = DEFAULT_NAME, containerName = DEFAULT_CONTAINER_NAME, port = DEFAULT_PORT, replicaSet = false } = {}) {
+  const cmd = replicaSet ? ['--replSet', 'rs0', '--bind_ip_all'] : undefined;
+
   return {
-    name: NAME,
-    containerName: CONTAINER_NAME,
+    name,
+    containerName,
     image: IMAGE,
-    port: PORT,
+    port,
 
     async start() {
-      await ensureContainerRunning({ image: IMAGE, name: CONTAINER_NAME, port: PORT });
+      await ensureContainerRunning({ image: IMAGE, name: containerName, port, cmd });
     },
 
     async healthCheck() {
-      return checkTcpHealth('127.0.0.1', PORT);
+      return checkTcpHealth('127.0.0.1', port);
     },
+
+    ...(replicaSet ? {
+      async postStart() {
+        await execInContainer(containerName, [
+          'mongosh', '--eval',
+          `rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:${port}'}]})`,
+        ]);
+      },
+    } : {}),
 
     // MongoDB creates databases lazily on first write — no provisioning needed.
     async provision(_projectName, _cfg) {},
 
     connectionString(projectName, cfg) {
       const db = cfg?.db || projectName;
-      return `mongodb://localhost:${PORT}/${db}`;
+      const suffix = replicaSet ? '?replicaSet=rs0' : '';
+      return `mongodb://localhost:${port}/${db}${suffix}`;
     },
 
     async stop() {
-      await stopContainer(CONTAINER_NAME);
+      await stopContainer(containerName);
     },
 
     // Destructive DB cleanup is deferred to a future plan.
