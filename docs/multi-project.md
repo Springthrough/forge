@@ -55,11 +55,11 @@ After step 3 and 4, `.forge/config.json` will contain:
 - `services.mongo` (inherited from sai)
 - `services.redis` (inherited from bh-realtime, using bh-realtime's `env` key `BH_REALTIME_REDIS_URL`)
 
-If the project is already registered when you extend it, run `forge sync` instead of `forge add` to reallocate ports and provision any new services:
+If the project is already registered when you extend it, run `forge reload` instead of `forge add` to reallocate ports and provision any new services:
 
 ```bash
 forge extend ../some-new-dependency
-forge sync
+forge reload
 ```
 
 ## Multi-instance services
@@ -164,10 +164,10 @@ Note: `BH_REALTIME_PORT` is safe to use for both because it is unique enough not
 
 Declare services in the project that owns the data (`sai/.forge/config.json`). When sai-web extends sai, it inherits the mongo declaration automatically. Declaring it again in sai-web is redundant at best and causes confusion if the parameters differ.
 
-**Do not forget to run `forge sync` after extending an already-registered project.**
+**Do not forget to run `forge reload` after extending an already-registered project.**
 
-`forge extend` only modifies `.forge/config.json` on disk. The running daemon does not know about the new processes or services until you run `forge sync`, which re-reads the config and reallocates ports and provisions new services.
+`forge extend` only modifies `.forge/config.json` on disk. The running daemon does not know about the new processes or services until you run `forge reload`, which re-reads the config and reallocates ports and provisions new services.
 
 **Do not run `forge add` on an already-registered project.**
 
-`forge add` is for initial registration. For updates, use `forge sync`. Running `forge add` on an already-registered project may produce unexpected behavior.
+`forge add` is for initial registration. For updates, use `forge reload`. Running `forge add` on an already-registered project may produce unexpected behavior.

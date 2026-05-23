@@ -278,7 +278,7 @@ Example: the API process has `"portEnv": "PORT", "portExportEnv": "SAI_API_PORT"
 cd ~/projects/sai-web
 forge extend ../sai
 forge extend ../bh-realtime
-forge sync   # if the project is already registered
+forge reload   # if the project is already registered
 ```
 
 What extend does:
@@ -290,7 +290,7 @@ What extend does:
 
 Already-present processes are skipped (the count is reported). Services already declared in the current config are not overwritten.
 
-After `forge extend`, run `forge sync` if the project is already registered with the daemon. This reallocates ports and provisions any new services.
+After `forge extend`, run `forge reload` if the project is already registered with the daemon. This reallocates ports and provisions any new services.
 
 See [docs/multi-project.md](docs/multi-project.md) for patterns and pitfalls.
 
@@ -331,29 +331,39 @@ Both sai-web and any other consumer each get their own port and their own `BH_RE
 | `forge uninstall` | Stop daemon and remove launchd agent |
 | `forge init` | Scaffold `.forge/config.json` in the current directory (auto-detects name from `package.json`) |
 | `forge add` | Register the current project: allocate ports, provision services, write `.env.forge` |
-| `forge sync` | Re-read `.forge/config.json` and update allocations. Run after any config edit. |
-| `forge remove <project>` | Unregister a project and release its allocations |
+| `forge reload` | Re-read `.forge/config.json` and apply changes to the daemon. Run after any config edit. (`forge sync` is a backwards-compatible alias.) |
 | `forge up [project]` | Start all processes. CWD-aware when no project given. |
 | `forge down [project]` | Stop all processes. CWD-aware when no project given. |
+| `forge restart [project]` | Stop then start processes for a project. CWD-aware when no project given. |
+| `forge status` | Show all registered projects and process statuses |
 | `forge logs <process> [project]` | Show buffered output for a process. `--follow`/`-f` to stream live. `-n <lines>` controls how many lines (default 100). Project resolved from CWD if omitted. |
 | `forge env [project]` | Show all env vars forge will inject for a project. Sections: Services and Processes. Project resolved from CWD if omitted. |
-| `forge extend <path>` | Merge processes and services from another project into current `.forge/config.json` |
-| `forge status` | Show all registered projects and process statuses |
-| `forge services` | Show shared service health |
 | `forge open` | Open the web dashboard in the default browser |
+| `forge service` | Show shared service health |
+| `forge service up [name]` | Start one or all shared services |
+| `forge service down [name]` | Stop one or all shared services |
+| `forge service list` | List all named service instances |
+| `forge service add <type> <name>` | Add a named service instance |
+| `forge service remove <type> <name>` | Remove a named service instance |
+| `forge service configure <type> [name]` | Update options for a service instance |
+| `forge extend <path>` | Merge processes and services from another project into current `.forge/config.json` |
+| `forge remove [project]` | Unregister a project and release its allocations. CWD-aware when no project given. |
 | `forge version` | Show forge version and daemon status |
 
 ### CWD-aware commands
 
-`forge up` and `forge down` without a project name check the current working directory. If CWD matches a registered project's path, only that project is affected. Otherwise all registered projects are affected.
+`forge up`, `forge down`, `forge restart`, and `forge remove` without a project name check the current working directory. If CWD matches a registered project's path, only that project is affected. Otherwise all registered projects are affected (for process commands) or an error is returned (for `forge remove`).
 
 ```bash
 cd ~/projects/sai-web
-forge up    # starts only sai-web
-forge down  # stops only sai-web
+forge up       # starts only sai-web
+forge down     # stops only sai-web
+forge restart  # restarts only sai-web
+forge remove   # unregisters sai-web
 
 cd ~
 forge up    # starts all registered projects
+forge down  # stops all registered projects
 ```
 
 ## Dashboard
@@ -386,7 +396,7 @@ npm_config_build_from_source=true npm rebuild node-pty
 ```
 
 **Port conflict**
-Add more candidate ports to the `ports` array for the affected process, then run `forge sync`.
+Add more candidate ports to the `ports` array for the affected process, then run `forge reload`.
 
 **Service won't start**
 Forge uses Docker to run Mongo and Redis. Make sure Docker Desktop is running:

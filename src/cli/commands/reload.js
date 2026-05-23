@@ -1,13 +1,15 @@
+// src/cli/commands/reload.js
 const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
 const client = require('../client');
 const { writeEnvFile, ensureGitignored } = require('../env-file');
 
-module.exports = function registerSync(program) {
+module.exports = function registerReload(program) {
   program
-    .command('sync')
-    .description('Re-read .forge/config.json from CWD and update port allocations')
+    .command('reload')
+    .alias('sync')
+    .description('Re-read .forge/config.json and apply changes to the daemon')
     .action(async () => {
       const cwd = process.cwd();
       const configPath = path.join(cwd, '.forge', 'config.json');
@@ -24,12 +26,12 @@ module.exports = function registerSync(program) {
       try {
         result = await client.syncProject(config.name, { ...config, path: cwd });
       } catch (err) {
-        console.error(chalk.red(`Sync failed: ${err.message}`));
+        console.error(chalk.red(`Reload failed: ${err.message}`));
         process.exit(1);
       }
       const envFile = config.envFile ?? '.env.forge';
       writeEnvFile(cwd, envFile, result.allocations, config);
-      console.log(chalk.green(`✓ Synced ${config.name}`));
+      console.log(chalk.green(`✓ Reloaded ${config.name}`));
       for (const [proc, port] of Object.entries(result.allocations.ports)) {
         console.log(chalk.dim(`  ${proc}: ${port}`));
       }
