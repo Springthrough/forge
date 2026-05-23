@@ -7,12 +7,12 @@ export default function ServicesPanel({ services }) {
       <div className="section-label">Shared Services</div>
       <div className="services-list">
         {entries.map(([name, info]) => {
-          const healthy = info?.status === 'healthy';
+          const healthy = info?.healthy === true;
           return (
             <div key={name} className="service-row">
               <span>{name}</span>
               <span style={{ color: healthy ? 'var(--green)' : 'var(--text-secondary)' }}>
-                ● {info?.status ?? 'unknown'}
+                ● {healthy ? 'healthy' : 'unhealthy'}
               </span>
             </div>
           );
