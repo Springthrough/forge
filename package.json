@@ -1,11 +1,16 @@
 {
-  "name": "forge",
+  "name": "@brutalsystems/forge",
   "version": "0.1.0",
-  "description": "Local dev orchestration daemon",
+  "description": "Local dev process orchestration daemon with web dashboard",
   "main": "src/daemon/server.js",
   "bin": {
     "forge": "./bin/forge.js"
   },
+  "files": [
+    "bin/",
+    "src/",
+    "web/dist/"
+  ],
   "engines": {
     "node": ">=20"
   },
@@ -14,14 +19,17 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "build:web": "vite build --config web/vite.config.js",
-    "dev:web": "vite --config web/vite.config.js"
+    "dev:web": "vite --config web/vite.config.js",
+    "prepare": "npm run build:web"
   },
   "jest": {
     "testMatch": [
       "**/test/**/*.test.js"
     ]
   },
-  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
   "license": "MIT",
   "dependencies": {
     "chalk": "^4.1.2",
