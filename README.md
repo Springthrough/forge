@@ -1,8 +1,15 @@
 # Forge
 
-Local dev process orchestration daemon with web dashboard for macOS.
+Your entire local dev stack — processes, ports, and shared services — started with one command.
 
-Forge runs a background daemon that manages your dev processes (servers, workers, watchers) across one or more repos. Each project gets dedicated port allocations, shared services (Mongo, Redis) start and stop on demand via Docker, and a web dashboard at `localhost:2525` shows live terminal output for every process.
+Working across multiple repos means juggling terminals, remembering which project owns port 3000, manually starting Docker containers, and re-doing it all after a reboot. Forge runs a background daemon that handles all of it so you don't have to think about it.
+
+- **Automatic port allocation** — picks ports from a candidate list, re-validates on every `forge up`, no more conflicts
+- **On-demand shared services** — Mongo, Redis, Postgres, RabbitMQ start when a project needs them, stop when nothing does
+- **Live dashboard** at `localhost:2525` — terminal output for every process, start/stop/restart controls, no extra terminals
+- **Full PTY processes** — colors, readline, and interactive tools work as expected
+- **Multi-repo support** — `forge extend` merges another project's processes and services into your config
+- **Survives reboots** — runs as a launchd agent, always ready after login
 
 ## Requirements
 
