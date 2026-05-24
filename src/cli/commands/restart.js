@@ -1,18 +1,10 @@
 // src/cli/commands/restart.js
 const chalk = require('chalk');
 const client = require('../client');
-const { writeEnvFile } = require('../env-file');
 
 async function restartProject(project) {
   await client.downProject(project.name);
-  if (project.config?.envFile !== false) {
-    writeEnvFile(
-      project.path,
-      project.config?.envFile ?? '.env.forge',
-      project.allocations,
-      project.config
-    );
-  }
+  // The daemon re-validates ports and writes .env.forge before spawning processes.
   await client.upProject(project.name);
   console.log(chalk.green(`✓ ${project.name}`) + chalk.dim('  restarted'));
 }

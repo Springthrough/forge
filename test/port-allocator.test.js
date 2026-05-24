@@ -95,3 +95,33 @@ test('restoreFromRegistry re-populates reservations', async () => {
   const second = await alloc.reserve('cleome', 'api', [port, other]);
   expect(second).toBe(other);
 });
+
+test('revalidate returns current port when it is still available', async () => {
+  const alloc = createPortAllocator();
+  const port = await findFreePort();
+  await alloc.reserve('sai', 'api', [port]);
+  const result = await alloc.revalidate('sai', 'api', [port]);
+  expect(result).toBe(port);
+  expect(alloc.getAll()['sai:api']).toBe(port);
+});
+
+test('revalidate re-allocates to next candidate when current port is occupied', async () => {
+  const alloc = createPortAllocator();
+  const { port: busy, close } = await bindPort();
+  const free = await findFreePort();
+  // Reserve the busy port first (simulating a stale registry entry)
+  alloc.restoreFromRegistry({ sai: { allocations: { ports: { api: busy } } } });
+  try {
+    const result = await alloc.revalidate('sai', 'api', [busy, free]);
+    expect(result).toBe(free);
+    expect(alloc.getAll()['sai:api']).toBe(free);
+  } finally {
+    await close();
+  }
+});
+
+test('revalidate returns null when process has no reservation', async () => {
+  const alloc = createPortAllocator();
+  const result = await alloc.revalidate('sai', 'api', [3000]);
+  expect(result).toBeNull();
+});

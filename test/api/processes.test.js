@@ -37,6 +37,7 @@ function setup() {
     path: '/projects/sai',
     config: {
       name: 'sai',
+      envFile: false,
       processes: [{ name: 'api', command: 'npm start', cwd: '.', ports: [3000], portEnv: 'PORT' }],
       services: {},
     },
@@ -132,7 +133,7 @@ test('POST down does not stop shared services', async () => {
   const svcMgr2 = createServiceManager([mongoDriver]);
   reg2.add('sai', {
     path: '/projects/sai',
-    config: { name: 'sai', processes: [], services: { mongo: { db: 'sai' } } },
+    config: { name: 'sai', envFile: false, processes: [], services: { mongo: { db: 'sai' } } },
     allocations: { ports: {}, services: { mongo: 'mongodb://localhost/sai' } },
   });
   const { app: app2 } = createServer({

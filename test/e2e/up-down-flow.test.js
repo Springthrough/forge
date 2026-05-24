@@ -1,5 +1,6 @@
 // test/e2e/up-down-flow.test.js
 const fs = require('fs');
+const net = require('net');
 const os = require('os');
 const path = require('path');
 const request = require('supertest');
@@ -8,6 +9,15 @@ const { createRegistry } = require('../../src/daemon/registry');
 const { createPortAllocator } = require('../../src/daemon/port-allocator');
 const { createServiceManager } = require('../../src/daemon/services/manager');
 const { createProcessManager } = require('../../src/daemon/process-manager');
+const { findFreePort } = require('../helpers/find-free-port');
+
+function bindPort(port) {
+  return new Promise((resolve, reject) => {
+    const s = net.createServer();
+    s.listen(port, '127.0.0.1', () => resolve({ port, close: () => new Promise(r => s.close(r)) }));
+    s.on('error', reject);
+  });
+}
 
 const noopServiceManager = createServiceManager([]);
 
@@ -54,6 +64,7 @@ function setup() {
     path: '/projects/sai',
     config: {
       name: 'sai',
+      envFile: false,
       processes: [
         { name: 'api',    command: 'node server.js',  cwd: '.', ports: [3000], portEnv: 'PORT' },
         { name: 'worker', command: 'node worker.js',  cwd: '.', ports: [] },
@@ -153,6 +164,100 @@ describe('up/down/restart flow', () => {
       await request(app).post('/api/projects/unknown/processes/up').expect(404);
     } finally {
       cleanup();
+    }
+  });
+
+  test('POST /up returns allocations in response', async () => {
+    const { app, cleanup } = setup();
+    try {
+      const res = await request(app).post('/api/projects/sai/processes/up').expect(200);
+      expect(res.body.allocations).toBeDefined();
+      expect(res.body.allocations.ports.api).toBe(3000);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe('port re-validation on up', () => {
+  test('POST /up re-allocates stale port and updates registry', async () => {
+    const tmp = makeTempRegistry();
+    const { spawn, ptys } = makeMockPtySpawn();
+    const processManager = createProcessManager({ ptySpawn: spawn });
+    const portAllocator = createPortAllocator();
+    const [preferred, fallback] = await Promise.all([findFreePort(), findFreePort()]);
+
+    // Simulate stale registry: preferred port was allocated but is now occupied
+    tmp.registry.add('myapp', {
+      path: '/projects/myapp',
+      config: {
+        name: 'myapp',
+        envFile: false,
+        processes: [
+          { name: 'api', command: 'node s.js', cwd: '.', ports: [preferred, fallback], portEnv: 'PORT' },
+        ],
+        services: {},
+      },
+      allocations: { ports: { api: preferred }, services: {} },
+    });
+    // Restore the stale reservation so portAllocator knows about it
+    portAllocator.restoreFromRegistry(tmp.registry.getAll());
+
+    const { app } = createServer({ registry: tmp.registry, portAllocator, serviceManager: noopServiceManager, processManager });
+
+    // Occupy the preferred port so re-validation is forced
+    const occupied = await bindPort(preferred);
+    try {
+      const res = await request(app).post('/api/projects/myapp/processes/up').expect(200);
+      expect(res.body.allocations.ports.api).toBe(fallback);
+
+      // Registry updated with new port
+      expect(tmp.registry.get('myapp').allocations.ports.api).toBe(fallback);
+
+      // Process injected with new port
+      const apiPty = ptys.find(p => p.command === 'node s.js');
+      expect(apiPty.env.PORT).toBe(String(fallback));
+    } finally {
+      await occupied.close();
+      tmp.cleanup();
+    }
+  });
+
+  test('POST /up writes env file with re-validated port before spawning', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-up-envfile-'));
+    const tmp = makeTempRegistry();
+    const { spawn } = makeMockPtySpawn();
+    const processManager = createProcessManager({ ptySpawn: spawn });
+    const portAllocator = createPortAllocator();
+    const [preferred, fallback] = await Promise.all([findFreePort(), findFreePort()]);
+
+    tmp.registry.add('myapp', {
+      path: tmpDir,
+      config: {
+        name: 'myapp',
+        envFile: '.env.forge',
+        processes: [
+          { name: 'api', command: 'node s.js', cwd: '.', ports: [preferred, fallback], portEnv: 'PORT', portExportEnv: 'MYAPP_API_PORT' },
+        ],
+        services: {},
+      },
+      allocations: { ports: { api: preferred }, services: {} },
+    });
+    portAllocator.restoreFromRegistry(tmp.registry.getAll());
+
+    const { app } = createServer({ registry: tmp.registry, portAllocator, serviceManager: noopServiceManager, processManager });
+
+    const occupied = await bindPort(preferred);
+    try {
+      await request(app).post('/api/projects/myapp/processes/up').expect(200);
+
+      const envContent = fs.readFileSync(path.join(tmpDir, '.env.forge'), 'utf8');
+      expect(envContent).toContain(`MYAPP_API_PORT=${fallback}`);
+      expect(envContent).not.toContain(`MYAPP_API_PORT=${preferred}`);
+    } finally {
+      await occupied.close();
+      tmp.cleanup();
+      fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 });

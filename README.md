@@ -62,7 +62,7 @@ Each process in your config is spawned as a PTY (pseudo-terminal), which means i
 - Buffers terminal output for retrieval via `forge logs` or the dashboard
 - Accepts input to the PTY for interactive processes
 
-Port allocations persist in `~/.forge/registry.json`. They do not change unless you run `forge remove` + `forge add`, or `forge sync` after changing the `ports` list.
+Port allocations persist in `~/.forge/registry.json`. At `forge up` time the daemon re-validates each registered port: if the port has been claimed by another process since registration, forge automatically re-allocates to the next available candidate from the `ports` list and rewrites `.env.forge` before spawning. Allocations only reset explicitly when you run `forge remove` + `forge add`, or `forge reload` after changing the `ports` list.
 
 ### Env injection
 
@@ -270,6 +270,29 @@ Example: the API process has `"portEnv": "PORT", "portExportEnv": "SAI_API_PORT"
 - `PORT=8200` is injected only into the API process
 - `SAI_API_PORT=8200` is written to `.env.forge` and therefore available to the Vite process (and any other process) via `process.env.SAI_API_PORT`
 
+## Future: `dependsOn` startup ordering
+
+Currently all processes in a project start in parallel (config-array order, no readiness gating). For most setups this is fine: `.env.forge` is written with validated port values before any process spawns, so a Vite dev server reading `BACKEND_PORT` at startup gets the correct number even if the backend hasn't finished binding yet.
+
+However, some scenarios genuinely require one process to be **ready** before another starts:
+
+- A database migration runner that must complete before the API accepts traffic
+- A code-generation step whose output a subsequent build step reads
+- A process that reads a sibling's port from its **network response** rather than an env var (requires the sibling to be listening)
+
+A future `dependsOn` field on process configs would address these cases:
+
+```json
+{
+  "name": "app",
+  "command": "yarn dev",
+  "dependsOn": ["api"],
+  "waitFor": { "port": "API_PORT", "timeoutSeconds": 30 }
+}
+```
+
+With this, forge would start `api` first, poll until its port is accepting TCP connections, then start `app`. Without it, callers must either tolerate startup races or sequence `forge up` calls manually (`forge up api && forge up app`).
+
 ## forge extend — multi-repo setup
 
 `forge extend <path>` merges processes and services from another project's `.forge/config.json` into the current one.
@@ -396,7 +419,7 @@ npm_config_build_from_source=true npm rebuild node-pty
 ```
 
 **Port conflict**
-Add more candidate ports to the `ports` array for the affected process, then run `forge reload`.
+Forge automatically re-allocates at `forge up` time if a registered port is occupied. If it still fails (all candidates are taken), add more candidate ports to the `ports` array for the affected process and run `forge reload`.
 
 **Service won't start**
 Forge uses Docker to run Mongo and Redis. Make sure Docker Desktop is running:

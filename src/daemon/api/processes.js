@@ -1,7 +1,8 @@
 // src/daemon/api/processes.js
 const { Router } = require('express');
+const { writeEnvFile } = require('../../cli/env-file');
 
-function createProcessRoutes({ registry, processManager, serviceManager }) {
+function createProcessRoutes({ registry, processManager, serviceManager, portAllocator }) {
   const router = Router({ mergeParams: true }); // makes :name from parent available
 
   router.get('/', (req, res) => {
@@ -19,8 +20,43 @@ function createProcessRoutes({ registry, processManager, serviceManager }) {
     } catch (err) {
       return res.status(500).json({ error: `Failed to start services: ${err.message}` });
     }
-    processManager.up(req.params.name, project.config?.processes ?? [], project.allocations ?? {}, project.path, project.config?.services ?? {});
-    res.json({ ok: true, project: req.params.name });
+
+    // Re-validate registered ports — they may have been claimed since forge add/reload.
+    // Only revalidate processes that aren't already running (no-op for idempotent calls).
+    const ports = { ...(project.allocations?.ports ?? {}) };
+    let anyChanged = false;
+    if (portAllocator) {
+      for (const proc of project.config?.processes ?? []) {
+        if (ports[proc.name] == null || !proc.ports?.length) continue;
+        if (processManager.isRunning(req.params.name, proc.name)) continue;
+        try {
+          const fresh = await portAllocator.revalidate(req.params.name, proc.name, proc.ports);
+          if (fresh !== null && fresh !== ports[proc.name]) {
+            ports[proc.name] = fresh;
+            anyChanged = true;
+          }
+        } catch (err) {
+          return res.status(500).json({ error: `Port allocation failed for ${proc.name}: ${err.message}` });
+        }
+      }
+    }
+
+    const allocations = anyChanged
+      ? { ...project.allocations, ports }
+      : project.allocations ?? {};
+
+    if (anyChanged) {
+      registry.update(req.params.name, { allocations });
+    }
+
+    // Write env file with validated allocations before spawning so processes read correct values.
+    const envFilename = project.config?.envFile ?? '.env.forge';
+    if (envFilename !== false) {
+      writeEnvFile(project.path, envFilename, allocations, project.config);
+    }
+
+    processManager.up(req.params.name, project.config?.processes ?? [], allocations, project.path, project.config?.services ?? {});
+    res.json({ ok: true, project: req.params.name, allocations });
   });
 
   router.post('/down', async (req, res) => {

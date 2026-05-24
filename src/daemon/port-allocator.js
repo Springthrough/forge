@@ -47,6 +47,23 @@ function createPortAllocator() {
       return Object.fromEntries(reserved);
     },
 
+    async revalidate(project, process, candidates) {
+      const current = reserved.get(`${project}:${process}`);
+      if (current == null) return null;
+      if (await checkTcpAvailable(current)) return current;
+      // Current port is occupied — release and re-allocate from candidates
+      reserved.delete(`${project}:${process}`);
+      for (const port of candidates) {
+        if (await this.isAvailable(port)) {
+          reserved.set(`${project}:${process}`, port);
+          return port;
+        }
+      }
+      throw new Error(
+        `No available port for ${project}:${process} — tried: ${candidates.join(', ')}`
+      );
+    },
+
     restoreFromRegistry(projects) {
       for (const [name, project] of Object.entries(projects)) {
         for (const [proc, port] of Object.entries(project.allocations?.ports ?? {})) {
