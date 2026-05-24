@@ -38,6 +38,7 @@ function buildStartOrder(processConfigs) {
     const wave = processConfigs.filter(p =>
       !placed.has(p.name) && (p.dependsOn ?? []).every(d => placed.has(d))
     );
+    if (wave.length === 0) throw new Error('Internal error: dependency wave stalled — this is a bug');
     waves.push(wave);
     for (const p of wave) placed.add(p.name);
   }
