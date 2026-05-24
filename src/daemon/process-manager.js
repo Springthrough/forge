@@ -207,10 +207,10 @@ function createProcessManager({ ptySpawn, pollPort, waitForExit } = {}) {
       killOne(projectName, processName);
     },
 
-    restart(projectName, processName, processConfigs, allocations, projectPath, servicesConfig) {
+    async restart(projectName, processName, processConfigs, allocations, projectPath, servicesConfig) {
       killOne(projectName, processName);
       const proc = (processConfigs ?? []).find(p => p.name === processName);
-      if (proc) startOne(projectName, proc, allocations ?? {}, projectPath, servicesConfig ?? {});
+      if (proc) await startOne(projectName, proc, allocations ?? {}, projectPath, servicesConfig ?? {});
     },
 
     getStatuses(projectName, processConfigs) {
