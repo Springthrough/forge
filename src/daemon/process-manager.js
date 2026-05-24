@@ -24,6 +24,26 @@ function defaultPollPort(port, timeoutMs) {
   });
 }
 
+// Polls until the process group (pgid) has no living members or timeout elapses.
+// Needed because node-pty's onExit only tracks the direct child (shell/yarn), not
+// grandchildren like vite. Killing -pgid sends SIGTERM to the whole group, and this
+// waits until the OS confirms they're all gone.
+function waitForPgroupDead(pgid, timeoutMs = 2000) {
+  return new Promise(resolve => {
+    const deadline = Date.now() + timeoutMs;
+    function check() {
+      try {
+        process.kill(-pgid, 0); // signal 0 = existence check, throws ESRCH if gone
+        if (Date.now() >= deadline) return resolve();
+        setTimeout(check, 50);
+      } catch {
+        resolve(); // ESRCH — process group is gone
+      }
+    }
+    check();
+  });
+}
+
 function defaultWaitForExit(ptyProc, timeoutMs) {
   return new Promise(resolve => {
     let settled = false;
@@ -150,6 +170,7 @@ function createProcessManager({ ptySpawn, pollPort, waitForExit } = {}) {
   function killOne(projectName, processName) {
     const k = key(projectName, processName);
     const record = processes.get(k);
+    if (record?.pid) { try { process.kill(-record.pid, 'SIGTERM'); } catch {} }
     if (record?.ptyProcess) { try { record.ptyProcess.kill(); } catch {} }
     emit(k, { type: 'status', status: 'stopped' });
     processes.delete(k);
@@ -175,9 +196,17 @@ function createProcessManager({ ptySpawn, pollPort, waitForExit } = {}) {
             const record = processes.get(k);
             if (!record) continue;
             if (record.ptyProcess) {
+              const pgid = record.pid;
               exitPromises.push(new Promise(resolve => {
                 const timer = setTimeout(resolve, 5000);
-                record.ptyProcess.onExit(() => { clearTimeout(timer); resolve(); });
+                record.ptyProcess.onExit(async () => {
+                  clearTimeout(timer);
+                  // Wait for grandchildren (e.g. vite spawned by yarn) to die too —
+                  // PTY onExit only fires when the direct child exits, not descendants.
+                  if (pgid) await waitForPgroupDead(pgid);
+                  resolve();
+                });
+                if (pgid) { try { process.kill(-pgid, 'SIGTERM'); } catch {} }
                 try { record.ptyProcess.kill(); } catch {}
               }));
             }
@@ -275,6 +304,7 @@ function createProcessManager({ ptySpawn, pollPort, waitForExit } = {}) {
 
     killAll() {
       for (const [, record] of processes) {
+        if (record?.pid) { try { process.kill(-record.pid, 'SIGTERM'); } catch {} }
         if (record?.ptyProcess) { try { record.ptyProcess.kill(); } catch {} }
       }
       processes.clear();
