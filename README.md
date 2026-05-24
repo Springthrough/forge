@@ -320,7 +320,7 @@ By default all processes in a project start in parallel. For most setups this is
 
 `waitFor` lives on the **dependency** (the process being waited on) and describes when it is considered ready:
 
-- `{ "port": true }` — polls TCP on this process's own allocated port until it accepts connections
+- `{ "port": true }` — polls TCP on this process's own allocated port until it accepts connections. If the process has no allocated port, forge treats it as ready immediately and emits a warning.
 - `{ "exit": true }` — waits for the process to exit with code 0
 - `"timeoutSeconds"` — how long to wait before warning and proceeding (default 30)
 
