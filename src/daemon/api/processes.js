@@ -66,7 +66,7 @@ function createProcessRoutes({ registry, processManager, serviceManager, portAll
   router.post('/down', async (req, res) => {
     const project = registry.get(req.params.name);
     if (!project) return res.status(404).json({ error: `"${req.params.name}" not found` });
-    processManager.down(req.params.name);
+    await processManager.down(req.params.name, project.config?.processes);
     res.json({ ok: true, project: req.params.name });
   });
 

@@ -165,10 +165,32 @@ function createProcessManager({ ptySpawn, pollPort, waitForExit } = {}) {
       }
     },
 
-    down(projectName) {
-      for (const k of [...processes.keys()]) {
-        if (k.startsWith(`${projectName}:`)) {
-          killOne(projectName, k.slice(projectName.length + 1));
+    async down(projectName, processConfigs) {
+      if (processConfigs?.length) {
+        const waves = buildStartOrder(processConfigs);
+        for (const wave of [...waves].reverse()) {
+          const exitPromises = [];
+          for (const proc of wave) {
+            const k = key(projectName, proc.name);
+            const record = processes.get(k);
+            if (!record) continue;
+            if (record.ptyProcess) {
+              exitPromises.push(new Promise(resolve => {
+                const timer = setTimeout(resolve, 5000);
+                record.ptyProcess.onExit(() => { clearTimeout(timer); resolve(); });
+                try { record.ptyProcess.kill(); } catch {}
+              }));
+            }
+            emit(k, { type: 'status', status: 'stopped' });
+            processes.delete(k);
+          }
+          if (exitPromises.length > 0) await Promise.all(exitPromises);
+        }
+      } else {
+        for (const k of [...processes.keys()]) {
+          if (k.startsWith(`${projectName}:`)) {
+            killOne(projectName, k.slice(projectName.length + 1));
+          }
         }
       }
     },

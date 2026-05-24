@@ -96,7 +96,10 @@ test('POST /api/projects/:name/processes/down calls processManager.down', async 
   const res = await request(app).post('/api/projects/sai/processes/down');
   expect(res.status).toBe(200);
   expect(res.body.ok).toBe(true);
-  expect(processManager.down).toHaveBeenCalledWith('sai');
+  expect(processManager.down).toHaveBeenCalledWith(
+    'sai',
+    expect.arrayContaining([expect.objectContaining({ name: 'api' })])
+  );
 });
 
 test('POST /api/projects/:name/processes/:proc/restart calls processManager.restart', async () => {

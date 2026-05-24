@@ -344,6 +344,74 @@ test('up() throws on cycle in dependsOn', async () => {
   await expect(pm2.up('sai', configs, {}, '/projects/sai')).rejects.toThrow('Cycle detected');
 });
 
+test('down() with processConfigs kills dependents before dependencies', async () => {
+  const killOrder = [];
+  const mockPtys = {};
+  const pm2 = createProcessManager({
+    ptySpawn: (command) => {
+      const m = makeMockPty();
+      if (command === 'app') {
+        m.kill = jest.fn(() => { killOrder.push(command); }); // does not auto-exit
+      } else {
+        m.kill = jest.fn(() => { killOrder.push(command); m.exit(0); });
+      }
+      mockPtys[command] = m;
+      return m;
+    },
+  });
+  const configs = [
+    { name: 'api', command: 'api' },
+    { name: 'app', command: 'app', dependsOn: ['api'] },
+  ];
+  await pm2.up('proj', configs, {}, '/projects/proj');
+
+  const downPromise = pm2.down('proj', configs);
+
+  // app (dependent) must be killed first
+  expect(killOrder[0]).toBe('app');
+  // api (dependency) must not be killed yet — waiting for app to exit
+  expect(killOrder).toHaveLength(1);
+
+  // Let app exit, which unblocks the next wave
+  mockPtys['app'].exit(0);
+  await downPromise;
+
+  expect(killOrder[1]).toBe('api');
+});
+
+test('down() with processConfigs waits for dependent exit before killing dependency', async () => {
+  let apiKilledAt = null;
+  let appExitedAt = null;
+  const mockPtys = {};
+  const pm2 = createProcessManager({
+    ptySpawn: (command) => {
+      const m = makeMockPty();
+      if (command === 'app') {
+        m.kill = jest.fn(() => {}); // manual exit control
+      } else {
+        m.kill = jest.fn(() => { apiKilledAt = Date.now(); m.exit(0); });
+      }
+      mockPtys[command] = m;
+      return m;
+    },
+  });
+  const configs = [
+    { name: 'api', command: 'api' },
+    { name: 'app', command: 'app', dependsOn: ['api'] },
+  ];
+  await pm2.up('proj', configs, {}, '/projects/proj');
+
+  const downPromise = pm2.down('proj', configs);
+  expect(apiKilledAt).toBeNull(); // api not yet killed
+
+  appExitedAt = Date.now();
+  mockPtys['app'].exit(0);
+  await downPromise;
+
+  expect(apiKilledAt).not.toBeNull();
+  expect(apiKilledAt).toBeGreaterThanOrEqual(appExitedAt);
+});
+
 test('startProcess() does not re-spawn already-running dependency', async () => {
   const pm2 = createProcessManager({
     ptySpawn: (command) => {
