@@ -246,6 +246,8 @@ forge starts the container with `--replSet rs0 --bind_ip_all` and runs `rs.initi
 | `portEnv` | string | Env var injected into **this process only** with its allocated port (e.g. `"PORT"`). Not written to `.env.forge`. |
 | `portExportEnv` | string | Env var written to `.env.forge` under this name so **sibling processes** can discover this process's port. Use when `portEnv` is too generic (e.g. `PORT`) to be safely shared. See the sibling port discovery section below. |
 | `env` | object | Static env vars injected into this process at spawn time. Written as-is; no substitution. |
+| `dependsOn` | array | Names of processes that must be ready before this one starts. Processes are started in topological order — a cycle throws an error. |
+| `waitFor` | object | Readiness condition used by dependent processes. `{ "port": true }` polls TCP on this process's allocated port. `{ "exit": true }` waits for exit code 0. Add `"timeoutSeconds": N` to override the 30-second default. Omit for immediate readiness (current default). |
 
 ### Service fields
 
@@ -287,28 +289,44 @@ Example: the API process has `"portEnv": "PORT", "portExportEnv": "SAI_API_PORT"
 - `PORT=8200` is injected only into the API process
 - `SAI_API_PORT=8200` is written to `.env.forge` and therefore available to the Vite process (and any other process) via `process.env.SAI_API_PORT`
 
-## Future: `dependsOn` startup ordering
+## Process startup ordering with `dependsOn`
 
-Currently all processes in a project start in parallel (config-array order, no readiness gating). For most setups this is fine: `.env.forge` is written with validated port values before any process spawns, so a Vite dev server reading `BACKEND_PORT` at startup gets the correct number even if the backend hasn't finished binding yet.
-
-However, some scenarios genuinely require one process to be **ready** before another starts:
-
-- A database migration runner that must complete before the API accepts traffic
-- A code-generation step whose output a subsequent build step reads
-- A process that reads a sibling's port from its **network response** rather than an env var (requires the sibling to be listening)
-
-A future `dependsOn` field on process configs would address these cases:
+By default all processes in a project start in parallel. For most setups this is fine: `.env.forge` is written with correct port values before any process spawns. When you need stricter ordering, use `dependsOn` and `waitFor`:
 
 ```json
 {
-  "name": "app",
-  "command": "yarn dev",
-  "dependsOn": ["api"],
-  "waitFor": { "port": "API_PORT", "timeoutSeconds": 30 }
+  "processes": [
+    {
+      "name": "migrate",
+      "command": "node migrate.js",
+      "waitFor": { "exit": true, "timeoutSeconds": 60 }
+    },
+    {
+      "name": "api",
+      "command": "node server.js",
+      "ports": [3000],
+      "portEnv": "PORT",
+      "dependsOn": ["migrate"],
+      "waitFor": { "port": true, "timeoutSeconds": 30 }
+    },
+    {
+      "name": "app",
+      "command": "yarn dev",
+      "dependsOn": ["api"]
+    }
+  ]
 }
 ```
 
-With this, forge would start `api` first, poll until its port is accepting TCP connections, then start `app`. Without it, callers must either tolerate startup races or sequence `forge up` calls manually (`forge up api && forge up app`).
+`waitFor` lives on the **dependency** (the process being waited on) and describes when it is considered ready:
+
+- `{ "port": true }` — polls TCP on this process's own allocated port until it accepts connections
+- `{ "exit": true }` — waits for the process to exit with code 0
+- `"timeoutSeconds"` — how long to wait before warning and proceeding (default 30)
+
+`dependsOn` is a list of process names that must be ready before this process starts. A cycle in the dependency graph is an error — forge refuses to start and prints the cycle path.
+
+`forge up <name>` also respects `dependsOn`: it starts all transitive dependencies first.
 
 ## forge extend — multi-repo setup
 
