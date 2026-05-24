@@ -138,7 +138,7 @@ function createServer({ registry, portAllocator, serviceManager, processManager,
 
 if (require.main === module) {
   const { server, processManager } = createServer();
-  server.listen(FORGE_PORT, () => {
+  server.listen(FORGE_PORT, '127.0.0.1', () => {
     console.log(`Forge daemon listening on port ${FORGE_PORT}`);
   });
   const shutdown = () => { processManager.killAll(); server.close(() => process.exit(0)); };
