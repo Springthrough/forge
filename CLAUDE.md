@@ -10,4 +10,8 @@ After bumping version in `package.json` and pushing:
    ```
    Then verify with `forge version` — both CLI and daemon should show the same version with no mismatch warning.
 
-2. **Publish to npm** — push triggers CI/CD which publishes to npm automatically. Do not run `npm publish` manually.
+2. **Publish to npm** — publishing is triggered by a version tag, not a branch push. After bumping the version and pushing the commit, create and push the tag:
+   ```bash
+   git tag v<version> && git push origin v<version>
+   ```
+   The `publish.yml` workflow only fires on `v*` tags. Pushing to `main` alone only runs CI tests — it does not publish.
