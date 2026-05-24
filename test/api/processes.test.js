@@ -146,3 +146,32 @@ test('POST down does not stop shared services', async () => {
   expect(mongoDriver.stop).not.toHaveBeenCalled();
   fs.unlinkSync(tmpPath2);
 });
+
+test('POST up returns 500 when processManager.up throws', async () => {
+  const tmpPath2 = path.join(os.tmpdir(), `forge-proc-err-${Date.now()}.json`);
+  const registry2 = createRegistry(tmpPath2);
+  registry2.add('sai', {
+    path: '/projects/sai',
+    config: {
+      name: 'sai',
+      envFile: false,
+      processes: [{ name: 'api', command: 'npm start', cwd: '.', ports: [3000], portEnv: 'PORT' }],
+      services: {},
+    },
+    allocations: { ports: { api: 3000 }, services: {} },
+  });
+  const throwingPM = {
+    ...makeMockProcessManager(),
+    up: jest.fn().mockRejectedValue(new Error('Cycle detected in dependsOn: a → b → a')),
+  };
+  const { app: app2 } = createServer({
+    registry: registry2,
+    portAllocator: createPortAllocator(),
+    serviceManager: createServiceManager([]),
+    processManager: throwingPM,
+  });
+  const res = await request(app2).post('/api/projects/sai/processes/up');
+  expect(res.status).toBe(500);
+  expect(res.body.error).toMatch(/Cycle detected/);
+  fs.existsSync(tmpPath2) && fs.unlinkSync(tmpPath2);
+});

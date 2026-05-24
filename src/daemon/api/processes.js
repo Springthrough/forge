@@ -55,7 +55,11 @@ function createProcessRoutes({ registry, processManager, serviceManager, portAll
       writeEnvFile(project.path, envFilename, allocations, project.config);
     }
 
-    processManager.up(req.params.name, project.config?.processes ?? [], allocations, project.path, project.config?.services ?? {});
+    try {
+      await processManager.up(req.params.name, project.config?.processes ?? [], allocations, project.path, project.config?.services ?? {});
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
     res.json({ ok: true, project: req.params.name, allocations });
   });
 
@@ -66,13 +70,17 @@ function createProcessRoutes({ registry, processManager, serviceManager, portAll
     res.json({ ok: true, project: req.params.name });
   });
 
-  router.post('/:processName/up', (req, res) => {
+  router.post('/:processName/up', async (req, res) => {
     const project = registry.get(req.params.name);
     if (!project) return res.status(404).json({ error: `"${req.params.name}" not found` });
-    processManager.startProcess(
-      req.params.name, req.params.processName,
-      project.config?.processes ?? [], project.allocations ?? {}, project.path, project.config?.services ?? {}
-    );
+    try {
+      await processManager.startProcess(
+        req.params.name, req.params.processName,
+        project.config?.processes ?? [], project.allocations ?? {}, project.path, project.config?.services ?? {}
+      );
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
     res.json({ ok: true, project: req.params.name, process: req.params.processName });
   });
 
