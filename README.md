@@ -47,6 +47,16 @@ forge up
 forge open
 ```
 
+## Why Forge?
+
+**Too many terminals.** Running a modern app means juggling an API server, a frontend dev server, a background worker, and a job queue — each in its own tab. Forge puts live terminal output for all of them in one dashboard, with per-process start, stop, and restart controls.
+
+**Port conflict hell.** Every project defaults to port 3000. Forge assigns ports from a candidate list at registration time and re-validates on every `forge up` — if something else has claimed a port since last time, it auto-reallocates and rewrites `.env.forge` before spawning.
+
+**Service startup ceremony.** Remembering to start Docker, then Mongo, then Redis — in the right order, every morning — is friction. Forge starts shared containers on demand when a project comes up, stops them when nothing needs them, and recreates them automatically if they're removed externally.
+
+**Multi-repo complexity.** When your frontend depends on an API from another repo, you need both sets of processes and services running, with the right env vars wiring them together. `forge extend` merges a dependency's config into yours — ports, services, and env injection included.
+
 ## Core concepts
 
 ### The daemon
