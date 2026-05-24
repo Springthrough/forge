@@ -5,7 +5,7 @@ const CONTAINER_NAME = 'forge-postgres';
 const IMAGE = 'postgres:16';
 const PORT = 5432;
 const USER = 'postgres';
-const PASSWORD = 'forge';
+const PASSWORD = 'forge'; // intentionally weak — local Docker container only, never exposed externally
 
 function sanitizeDbName(name) {
   return name.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^_+/, '') || 'forge_db';
