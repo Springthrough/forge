@@ -4,7 +4,6 @@ import react from '@vitejs/plugin-react';
 const forgePort = process.env.FORGE_PORT ?? 2525;
 
 export default defineConfig({
-  root: 'web',
   plugins: [react()],
   build: { outDir: 'dist' },
   server: {

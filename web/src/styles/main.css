@@ -58,6 +58,22 @@ body {
   border-bottom-color: var(--bg-base);
   margin-bottom: -1px;
 }
+.tab { display: flex; align-items: center; gap: 6px; }
+.tab__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s;
+}
+.tab:hover .tab__close { opacity: 1; }
+.tab__close:hover { background: var(--bg-overlay); color: var(--text-primary); }
 
 /* ── Section label ──────────────────────────────────────── */
 .section-label {
@@ -132,8 +148,8 @@ body {
   justify-content: space-between;
   align-items: flex-start;
 }
-.project-card__name  { font-size: 13px; font-weight: 600; }
-.project-card__path  { font-size: 10px; color: var(--text-secondary); }
+.project-card__name  { font-size: 13px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-card__path  { font-size: 10px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-card__procs { display: flex; flex-wrap: wrap; gap: 8px; font-size: 10px; }
 .process-dot         { display: flex; align-items: center; gap: 3px; color: var(--text-secondary); }
 

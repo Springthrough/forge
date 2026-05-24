@@ -1,4 +1,4 @@
-export default function TabBar({ projects, activeTab, onTabChange }) {
+export default function TabBar({ projects, activeTab, onTabChange, onTabClose }) {
   return (
     <nav className="tab-bar">
       <button
@@ -14,6 +14,12 @@ export default function TabBar({ projects, activeTab, onTabChange }) {
           onClick={() => onTabChange(p.name)}
         >
           {p.name}
+          <span
+            className="tab__close"
+            onClick={e => { e.stopPropagation(); onTabClose(p.name); }}
+          >
+            ✕
+          </span>
         </button>
       ))}
     </nav>
