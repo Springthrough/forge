@@ -1,10 +1,46 @@
 // src/daemon/process-manager.js
 const path = require('path');
+const net = require('net');
 const { parseEnvFile } = require('../parse-env-file');
+const { buildStartOrder } = require('./dependency-resolver');
 
 const MAX_BUFFER = 200;
 
-function createProcessManager({ ptySpawn } = {}) {
+function defaultPollPort(port, timeoutMs) {
+  return new Promise(resolve => {
+    const deadline = Date.now() + timeoutMs;
+    function attempt() {
+      if (Date.now() >= deadline) return resolve(false);
+      const socket = net.createConnection({ port, host: 'localhost' });
+      socket.on('connect', () => { socket.destroy(); resolve(true); });
+      socket.on('error', () => {
+        socket.destroy();
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) return resolve(false);
+        setTimeout(attempt, Math.min(250, remaining));
+      });
+    }
+    attempt();
+  });
+}
+
+function defaultWaitForExit(ptyProc, timeoutMs) {
+  return new Promise(resolve => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) { settled = true; resolve(false); }
+    }, timeoutMs);
+    ptyProc.onExit(({ exitCode }) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve(exitCode === 0);
+      }
+    });
+  });
+}
+
+function createProcessManager({ ptySpawn, pollPort, waitForExit } = {}) {
   const spawnFn = ptySpawn ?? function(command, env, cwd) {
     const pty = require('node-pty'); // lazy — not loaded in tests that inject ptySpawn
     const shell = process.env.SHELL || '/bin/zsh';
@@ -13,6 +49,8 @@ function createProcessManager({ ptySpawn } = {}) {
       cwd, env: { ...process.env, TERM: 'xterm-256color', ...env },
     });
   };
+  const pollPortFn    = pollPort    ?? defaultPollPort;
+  const waitForExitFn = waitForExit ?? defaultWaitForExit;
 
   // "project:process" → { status, startedAt, buffer, pid, ptyProcess }
   const processes = new Map();
@@ -32,7 +70,7 @@ function createProcessManager({ ptySpawn } = {}) {
     if (buffer.length > MAX_BUFFER) buffer.splice(0, buffer.length - MAX_BUFFER);
   }
 
-  function startOne(projectName, proc, allocations, projectPath, servicesConfig) {
+  async function startOne(projectName, proc, allocations, projectPath, servicesConfig) {
     const k = key(projectName, proc.name);
     if (processes.get(k)?.status === 'running') return;
 
@@ -83,6 +121,30 @@ function createProcessManager({ ptySpawn } = {}) {
       current.ptyProcess = null;
       emit(k, { type: 'status', status });
     });
+
+    if (proc.waitFor?.port) {
+      const timeoutMs = (proc.waitFor.timeoutSeconds ?? 30) * 1000;
+      if (port == null) {
+        const msg = `[forge] Warning: "${proc.name}" has waitFor.port but no allocated port — treating as ready\r\n`;
+        appendToBuffer(record.buffer, msg);
+        emit(k, { type: 'output', data: msg });
+      } else {
+        const ready = await pollPortFn(port, timeoutMs);
+        if (!ready) {
+          const msg = `[forge] Warning: "${proc.name}" did not become ready within ${proc.waitFor.timeoutSeconds ?? 30}s — starting dependents anyway\r\n`;
+          appendToBuffer(record.buffer, msg);
+          emit(k, { type: 'output', data: msg });
+        }
+      }
+    } else if (proc.waitFor?.exit) {
+      const timeoutMs = (proc.waitFor.timeoutSeconds ?? 30) * 1000;
+      const ready = await waitForExitFn(ptyProc, timeoutMs);
+      if (!ready) {
+        const msg = `[forge] Warning: "${proc.name}" did not complete successfully within ${proc.waitFor.timeoutSeconds ?? 30}s — starting dependents anyway\r\n`;
+        appendToBuffer(record.buffer, msg);
+        emit(k, { type: 'output', data: msg });
+      }
+    }
   }
 
   function killOne(projectName, processName) {
@@ -94,9 +156,12 @@ function createProcessManager({ ptySpawn } = {}) {
   }
 
   return {
-    up(projectName, processConfigs, allocations, projectPath, servicesConfig) {
-      for (const proc of processConfigs ?? []) {
-        startOne(projectName, proc, allocations ?? {}, projectPath, servicesConfig ?? {});
+    async up(projectName, processConfigs, allocations, projectPath, servicesConfig) {
+      const waves = buildStartOrder(processConfigs ?? []);
+      for (const wave of waves) {
+        await Promise.all(wave.map(proc =>
+          startOne(projectName, proc, allocations ?? {}, projectPath, servicesConfig ?? {})
+        ));
       }
     },
 
@@ -108,9 +173,34 @@ function createProcessManager({ ptySpawn } = {}) {
       }
     },
 
-    startProcess(projectName, processName, processConfigs, allocations, projectPath, servicesConfig) {
-      const proc = (processConfigs ?? []).find(p => p.name === processName);
-      if (proc) startOne(projectName, proc, allocations ?? {}, projectPath, servicesConfig ?? {});
+    async startProcess(projectName, processName, processConfigs, allocations, projectPath, servicesConfig) {
+      const all = processConfigs ?? [];
+      const proc = all.find(p => p.name === processName);
+      if (!proc) return;
+
+      const byName = new Map(all.map(p => [p.name, p]));
+      const ancestors = new Set();
+      function collectAncestors(name) {
+        for (const dep of byName.get(name)?.dependsOn ?? []) {
+          if (!ancestors.has(dep)) {
+            ancestors.add(dep);
+            collectAncestors(dep);
+          }
+        }
+      }
+      collectAncestors(processName);
+
+      if (ancestors.size > 0) {
+        const ancestorConfigs = all.filter(p => ancestors.has(p.name));
+        const depWaves = buildStartOrder(ancestorConfigs);
+        for (const wave of depWaves) {
+          await Promise.all(wave.map(p =>
+            startOne(projectName, p, allocations ?? {}, projectPath, servicesConfig ?? {})
+          ));
+        }
+      }
+
+      await startOne(projectName, proc, allocations ?? {}, projectPath, servicesConfig ?? {});
     },
 
     stopProcess(projectName, processName) {
