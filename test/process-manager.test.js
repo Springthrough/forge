@@ -335,6 +335,44 @@ test('startProcess() auto-starts transitive dependencies first', async () => {
   expect(order[2]).toBe('app');
 });
 
+test('up() awaits waitFor.http before starting dependent', async () => {
+  const order = [];
+  let resolvePoll;
+  const pollHttp = jest.fn().mockReturnValue(new Promise(r => { resolvePoll = r; }));
+  const pm2 = createProcessManager({
+    ptySpawn: (command) => { order.push(command); return makeMockPty(); },
+    pollHttp,
+  });
+  const configs = [
+    { name: 'api', command: 'api', ports: [3000], portEnv: 'PORT', waitFor: { http: true, timeoutSeconds: 5 } },
+    { name: 'app', command: 'app', dependsOn: ['api'] },
+  ];
+  const upPromise = pm2.up('sai', configs, { ports: { api: 3000 } }, '/projects/sai');
+  await Promise.resolve();
+  expect(order).toEqual(['api']);
+  resolvePoll(true);
+  await upPromise;
+  expect(order).toEqual(['api', 'app']);
+});
+
+test('up() emits warning and continues when waitFor.http times out', async () => {
+  const pollHttp = jest.fn().mockResolvedValue(false);
+  const order = [];
+  const pm2 = createProcessManager({
+    ptySpawn: (command) => { order.push(command); return makeMockPty(); },
+    pollHttp,
+  });
+  const configs = [
+    { name: 'api', command: 'api', ports: [3000], portEnv: 'PORT', waitFor: { http: true, timeoutSeconds: 5 } },
+    { name: 'app', command: 'app', dependsOn: ['api'] },
+  ];
+  await pm2.up('sai', configs, { ports: { api: 3000 } }, '/projects/sai');
+  expect(order).toEqual(['api', 'app']);
+  const buf = pm2.getBuffer('sai', 'api', 20);
+  expect(buf.join('\n')).toContain('[forge] Warning');
+  expect(buf.join('\n')).toContain('HTTP-ready');
+});
+
 test('up() throws on cycle in dependsOn', async () => {
   const pm2 = createProcessManager({ ptySpawn: () => makeMockPty() });
   const configs = [

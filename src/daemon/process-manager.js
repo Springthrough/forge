@@ -1,6 +1,7 @@
 // src/daemon/process-manager.js
 const path = require('path');
 const net = require('net');
+const http = require('http');
 const { parseEnvFile } = require('../parse-env-file');
 const { buildStartOrder } = require('./dependency-resolver');
 
@@ -44,6 +45,29 @@ function waitForPgroupDead(pgid, timeoutMs = 2000) {
   });
 }
 
+// Polls http://localhost:{port}/ until status < 500 (i.e. the HTTP stack is ready).
+// A 4xx (e.g. 404 or 401) is fine — it means the server is up and routing requests.
+// Connection errors and 5xx responses are retried until timeout.
+function defaultPollHttp(port, timeoutMs) {
+  return new Promise(resolve => {
+    const deadline = Date.now() + timeoutMs;
+    function attempt() {
+      if (Date.now() >= deadline) return resolve(false);
+      const req = http.request({ host: 'localhost', port, method: 'GET', path: '/' }, res => {
+        resolve(res.statusCode < 500);
+        res.resume(); // drain to free the socket
+      });
+      req.on('error', () => {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) return resolve(false);
+        setTimeout(attempt, Math.min(250, remaining));
+      });
+      req.end();
+    }
+    attempt();
+  });
+}
+
 function defaultWaitForExit(ptyProc, timeoutMs) {
   return new Promise(resolve => {
     let settled = false;
@@ -60,7 +84,7 @@ function defaultWaitForExit(ptyProc, timeoutMs) {
   });
 }
 
-function createProcessManager({ ptySpawn, pollPort, waitForExit } = {}) {
+function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit } = {}) {
   const spawnFn = ptySpawn ?? function(command, env, cwd) {
     const pty = require('node-pty'); // lazy — not loaded in tests that inject ptySpawn
     const shell = process.env.SHELL || '/bin/zsh';
@@ -70,6 +94,7 @@ function createProcessManager({ ptySpawn, pollPort, waitForExit } = {}) {
     });
   };
   const pollPortFn    = pollPort    ?? defaultPollPort;
+  const pollHttpFn    = pollHttp    ?? defaultPollHttp;
   const waitForExitFn = waitForExit ?? defaultWaitForExit;
 
   // "project:process" → { status, startedAt, buffer, pid, ptyProcess }
@@ -142,7 +167,21 @@ function createProcessManager({ ptySpawn, pollPort, waitForExit } = {}) {
       emit(k, { type: 'status', status });
     });
 
-    if (proc.waitFor?.port) {
+    if (proc.waitFor?.http) {
+      const timeoutMs = (proc.waitFor.timeoutSeconds ?? 30) * 1000;
+      if (port == null) {
+        const msg = `[forge] Warning: "${proc.name}" has waitFor.http but no allocated port — treating as ready\r\n`;
+        appendToBuffer(record.buffer, msg);
+        emit(k, { type: 'output', data: msg });
+      } else {
+        const ready = await pollHttpFn(port, timeoutMs);
+        if (!ready) {
+          const msg = `[forge] Warning: "${proc.name}" did not become HTTP-ready within ${proc.waitFor.timeoutSeconds ?? 30}s — starting dependents anyway\r\n`;
+          appendToBuffer(record.buffer, msg);
+          emit(k, { type: 'output', data: msg });
+        }
+      }
+    } else if (proc.waitFor?.port) {
       const timeoutMs = (proc.waitFor.timeoutSeconds ?? 30) * 1000;
       if (port == null) {
         const msg = `[forge] Warning: "${proc.name}" has waitFor.port but no allocated port — treating as ready\r\n`;
