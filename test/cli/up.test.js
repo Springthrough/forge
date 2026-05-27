@@ -60,4 +60,13 @@ describe('forge up', () => {
     const allOutput = logSpy.mock.calls.map(c => c[0]).join('\n');
     expect(allOutput).not.toContain('http://localhost:');
   });
+
+  test('does not show dashboard URL when daemon is not running', async () => {
+    client.isDaemonRunning.mockResolvedValue(false);
+
+    await expect(runUp(undefined)).rejects.toThrow('exit');
+
+    const allOutput = logSpy.mock.calls.map(c => c[0]).join('\n');
+    expect(allOutput).not.toContain('http://localhost:');
+  });
 });
