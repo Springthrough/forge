@@ -3,7 +3,7 @@ const net = require('net');
 
 const docker = new Docker();
 
-async function ensureContainerRunning({ image, name, port, cmd, env = [] }) {
+async function ensureContainerRunning({ image, name, port, cmd, env = [], volumes = [] }) {
   const containers = await docker.listContainers({ all: true });
   const existing = containers.find(c => c.Names.includes(`/${name}`));
 
@@ -29,6 +29,7 @@ async function ensureContainerRunning({ image, name, port, cmd, env = [] }) {
     HostConfig: {
       PortBindings: { [`${port}/tcp`]: [{ HostPort: String(port) }] },
       RestartPolicy: { Name: 'unless-stopped' },
+      ...(volumes.length > 0 ? { Binds: volumes } : {}),
     },
     Env: env,
   });

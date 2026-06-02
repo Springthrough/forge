@@ -15,7 +15,7 @@ function createMongoDriver({ name = DEFAULT_NAME, containerName = DEFAULT_CONTAI
     port,
 
     async start() {
-      await ensureContainerRunning({ image: IMAGE, name: containerName, port, cmd });
+      await ensureContainerRunning({ image: IMAGE, name: containerName, port, cmd, volumes: [`${containerName}-data:/data/db`] });
     },
 
     async healthCheck() {
@@ -24,10 +24,20 @@ function createMongoDriver({ name = DEFAULT_NAME, containerName = DEFAULT_CONTAI
 
     ...(replicaSet ? {
       async postStart() {
-        await execInContainer(containerName, [
-          'mongosh', '--eval',
-          `rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:${port}'}]})`,
-        ]);
+        // Retry loop: TCP health passes before mongod accepts RS commands.
+        // Also idempotent — if the volume already has RS state, rs.status().ok === 1 and we skip.
+        for (let i = 0; i < 10; i++) {
+          await new Promise(r => setTimeout(r, 1000));
+          try {
+            await execInContainer(containerName, [
+              'mongosh', '--quiet', '--eval',
+              `var s; try { s = rs.status(); } catch(e) { s = {ok:0}; } if (!s.ok) rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:${port}'}]});`,
+            ]);
+            return;
+          } catch (_) {
+            // retry
+          }
+        }
       },
     } : {}),
 
