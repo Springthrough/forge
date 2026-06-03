@@ -143,8 +143,10 @@ function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit } = {}
     } catch (err) {
       record.status = 'crashed';
       record.startedAt = null;
+      const msg = `\r\n\x1b[31mFailed to start: ${err.message}\x1b[0m\r\n`;
+      appendToBuffer(record.buffer, msg);
       emit(k, { type: 'status', status: 'crashed' });
-      emit(k, { type: 'output', data: `\r\n\x1b[31mFailed to start: ${err.message}\x1b[0m\r\n` });
+      emit(k, { type: 'output', data: msg });
       return;
     }
 

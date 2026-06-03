@@ -115,6 +115,16 @@ test('getStatuses() shows crashed after non-zero exit', async () => {
   expect(s.find(p => p.name === 'api').status).toBe('crashed');
 });
 
+test('getBuffer() includes the error message when pty spawn throws', async () => {
+  const failingPm = createProcessManager({
+    ptySpawn: () => { throw new Error('posix_spawnp failed.'); },
+  });
+  await failingPm.up('sai', processConfigs, allocations, '/projects/sai');
+  const buf = failingPm.getBuffer('sai', 'api').join('');
+  expect(buf).toContain('Failed to start: posix_spawnp failed.');
+  expect(failingPm.getStatuses('sai', processConfigs).find(p => p.name === 'api').status).toBe('crashed');
+});
+
 test('subscribe() receives output events', async () => {
   await pm.up('sai', processConfigs, allocations, '/projects/sai');
   const events = [];
