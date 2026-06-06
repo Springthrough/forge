@@ -82,7 +82,7 @@ module.exports = function registerService(program) {
 
   service
     .command('list')
-    .description('List all named service instances')
+    .description('List all shared services (built-in and named instances)')
     .action(async () => {
       if (!await client.isDaemonRunning()) {
         console.error(chalk.red('Forge daemon is not running.'));
@@ -90,7 +90,7 @@ module.exports = function registerService(program) {
       }
       const instances = await client.listInstances();
       if (instances.length === 0) {
-        console.log(chalk.dim('No named service instances configured.'));
+        console.log(chalk.dim('No shared services available.'));
         return;
       }
       for (const inst of instances) {
@@ -98,8 +98,10 @@ module.exports = function registerService(program) {
           .filter(([, v]) => v)
           .map(([k]) => chalk.cyan(k))
           .join(', ');
+        const tag = inst.builtIn ? chalk.dim(' built-in') : '';
+        const portStr = inst.port ? chalk.dim(`port ${inst.port}`) : chalk.dim('no port');
         console.log(
-          `${chalk.bold(inst.key)}  ${chalk.dim(`port ${inst.port}`)}${opts ? `  ${opts}` : ''}`
+          `${chalk.bold(inst.key)}${tag}  ${portStr}${opts ? `  ${opts}` : ''}`
         );
       }
     });

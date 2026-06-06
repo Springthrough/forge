@@ -145,6 +145,44 @@ test('GET /api/services/instances returns stored custom instances', async () => 
   cleanup();
 });
 
+test('GET /api/services/instances includes built-in services from the catalog', async () => {
+  const mongo = makeMockDriver('mongo', true);
+  const redis = makeMockDriver('redis', true);
+  const { app, cleanup } = tmpServerWithStore([mongo, redis]);
+  const res = await request(app).get('/api/services/instances');
+  expect(res.status).toBe(200);
+  const keys = res.body.map(i => i.key);
+  expect(keys).toEqual(expect.arrayContaining(['mongo', 'redis']));
+  const mongoEntry = res.body.find(i => i.key === 'mongo');
+  expect(mongoEntry.builtIn).toBe(true);
+  expect(mongoEntry.type).toBe('mongo');
+  expect(mongoEntry.instance).toBeNull();
+  cleanup();
+});
+
+test('GET /api/services/instances surfaces driver port for built-ins when registered', async () => {
+  const mongo = makeMockDriver('mongo', true); // mock driver port = 9999
+  const { app, cleanup } = tmpServerWithStore([mongo]);
+  const res = await request(app).get('/api/services/instances');
+  const mongoEntry = res.body.find(i => i.key === 'mongo');
+  expect(mongoEntry.port).toBe(9999);
+  cleanup();
+});
+
+test('GET /api/services/instances merges built-ins and named instances, built-ins first', async () => {
+  const mongo = makeMockDriver('mongo', true);
+  const { app, cleanup } = tmpServerWithStore([mongo], {
+    'mongo:rs': { type: 'mongo', instance: 'rs', port: 27842, options: { replicaSet: true } },
+  });
+  const res = await request(app).get('/api/services/instances');
+  expect(res.body).toHaveLength(2);
+  expect(res.body[0].key).toBe('mongo');
+  expect(res.body[0].builtIn).toBe(true);
+  expect(res.body[1].key).toBe('mongo:rs');
+  expect(res.body[1].builtIn).toBe(false);
+  cleanup();
+});
+
 test('POST /api/services/instances adds a new instance', async () => {
   const { app, cleanup } = tmpServerWithStore([]);
   const res = await request(app)

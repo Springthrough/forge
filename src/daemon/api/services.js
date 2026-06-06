@@ -106,8 +106,31 @@ function createServicesRoutes({ serviceManager, registry, instanceStore, driverF
 
   if (instanceStore) {
     router.get('/instances', (_req, res) => {
-      const all = instanceStore.getAll();
-      res.json(Object.entries(all).map(([key, cfg]) => ({ key, ...cfg })));
+      const stored = instanceStore.getAll();
+      const catalog = serviceManager.getCatalog();
+      const keys = [...new Set([...catalog, ...Object.keys(stored)])];
+
+      const result = keys.map((key) => {
+        const isBuiltIn = !key.includes(':');
+        const cfg = stored[key] ?? {};
+        const driverInfo = serviceManager.describe ? serviceManager.describe(key) : null;
+        const port = cfg.port ?? driverInfo?.port ?? (isBuiltIn ? BUILT_IN_DEFAULT_PORTS[key] : null);
+        return {
+          key,
+          type: cfg.type ?? (isBuiltIn ? key : key.split(':')[0]),
+          instance: cfg.instance ?? (isBuiltIn ? null : key.split(':')[1]),
+          port,
+          options: cfg.options ?? {},
+          builtIn: isBuiltIn,
+        };
+      });
+
+      result.sort((a, b) => {
+        if (a.builtIn !== b.builtIn) return a.builtIn ? -1 : 1;
+        return a.key.localeCompare(b.key);
+      });
+
+      res.json(result);
     });
 
     router.post('/instances', async (req, res) => {

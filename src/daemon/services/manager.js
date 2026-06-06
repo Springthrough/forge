@@ -55,6 +55,12 @@ function createServiceManager(drivers = []) {
       return [...byName.keys()];
     },
 
+    describe(name) {
+      const d = byName.get(name);
+      if (!d) return null;
+      return { name: d.name, containerName: d.containerName, port: d.port };
+    },
+
     async ensureServicesRunning(servicesConfig) {
       for (const serviceName of Object.keys(servicesConfig ?? {})) {
         const driver = byName.get(serviceName);
