@@ -169,6 +169,34 @@ test('GET /api/services/instances surfaces driver port for built-ins when regist
   cleanup();
 });
 
+test('GET /api/services/instances includes healthy=true for healthy drivers', async () => {
+  const mongo = makeMockDriver('mongo', true);
+  const { app, cleanup } = tmpServerWithStore([mongo]);
+  const res = await request(app).get('/api/services/instances');
+  const mongoEntry = res.body.find(i => i.key === 'mongo');
+  expect(mongoEntry.healthy).toBe(true);
+  cleanup();
+});
+
+test('GET /api/services/instances includes healthy=false for unhealthy drivers', async () => {
+  const redis = makeMockDriver('redis', false);
+  const { app, cleanup } = tmpServerWithStore([redis]);
+  const res = await request(app).get('/api/services/instances');
+  const redisEntry = res.body.find(i => i.key === 'redis');
+  expect(redisEntry.healthy).toBe(false);
+  cleanup();
+});
+
+test('GET /api/services/instances returns healthy=null for stored instances without a registered driver', async () => {
+  const { app, cleanup } = tmpServerWithStore([], {
+    'mongo:rs': { type: 'mongo', instance: 'rs', port: 27842, options: {} },
+  });
+  const res = await request(app).get('/api/services/instances');
+  const entry = res.body.find(i => i.key === 'mongo:rs');
+  expect(entry.healthy).toBeNull();
+  cleanup();
+});
+
 test('GET /api/services/instances merges built-ins and named instances, built-ins first', async () => {
   const mongo = makeMockDriver('mongo', true);
   const { app, cleanup } = tmpServerWithStore([mongo], {

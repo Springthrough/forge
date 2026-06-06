@@ -105,10 +105,13 @@ function createServicesRoutes({ serviceManager, registry, instanceStore, driverF
   });
 
   if (instanceStore) {
-    router.get('/instances', (_req, res) => {
+    router.get('/instances', async (_req, res) => {
       const stored = instanceStore.getAll();
       const catalog = serviceManager.getCatalog();
       const keys = [...new Set([...catalog, ...Object.keys(stored)])];
+
+      const statuses = await serviceManager.getStatus();
+      const healthByName = new Map(statuses.map(s => [s.name, s.healthy]));
 
       const result = keys.map((key) => {
         const isBuiltIn = !key.includes(':');
@@ -122,6 +125,7 @@ function createServicesRoutes({ serviceManager, registry, instanceStore, driverF
           port,
           options: cfg.options ?? {},
           builtIn: isBuiltIn,
+          healthy: healthByName.has(key) ? healthByName.get(key) : null,
         };
       });
 

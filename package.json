@@ -1,6 +1,6 @@
 {
   "name": "@brutalsystems/forge",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "description": "Local dev process orchestration daemon with web dashboard",
   "main": "src/daemon/server.js",
   "bin": {

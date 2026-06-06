@@ -100,8 +100,13 @@ module.exports = function registerService(program) {
           .join(', ');
         const tag = inst.builtIn ? chalk.dim(' built-in') : '';
         const portStr = inst.port ? chalk.dim(`port ${inst.port}`) : chalk.dim('no port');
+        const status = inst.healthy === true
+          ? chalk.green('● up  ')
+          : inst.healthy === false
+            ? chalk.red('✗ down')
+            : chalk.dim('? n/a ');
         console.log(
-          `${chalk.bold(inst.key)}${tag}  ${portStr}${opts ? `  ${opts}` : ''}`
+          `${status}  ${chalk.bold(inst.key)}${tag}  ${portStr}${opts ? `  ${opts}` : ''}`
         );
       }
     });
