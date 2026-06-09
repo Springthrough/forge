@@ -282,3 +282,20 @@ test('routes fall back to registry config when config.json is missing', async ()
   expect(procsPassed[0].name).toBe('api');
   expect(procsPassed[0].env).toBeUndefined();
 });
+
+test('POST /processes/:name/restart writes the env file with fresh config', async () => {
+  const { app, projectDir, rewriteConfig } = setupWithDisk();
+  // Make envFile a real path so writeEnvFile actually writes
+  rewriteConfig(c => {
+    c.envFile = '.env.forge';
+    c.processes[0].portExportEnv = 'API_PORT';
+    return c;
+  });
+  const res = await request(app).post('/api/projects/sai/processes/api/restart');
+  expect(res.status).toBe(200);
+
+  const envPath = path.join(projectDir, '.env.forge');
+  expect(fs.existsSync(envPath)).toBe(true);
+  const envContents = fs.readFileSync(envPath, 'utf8');
+  expect(envContents).toMatch(/API_PORT=3000/);
+});

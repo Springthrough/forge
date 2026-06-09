@@ -103,6 +103,14 @@ function createProcessRoutes({ registry, processManager, serviceManager, portAll
   router.post('/:processName/restart', (req, res) => {
     const project = refreshProjectConfig(registry, req.params.name);
     if (!project) return res.status(404).json({ error: `"${req.params.name}" not found` });
+
+    // Write env file with fresh config + current allocations before respawning,
+    // so processes see the same values via the env file as via the inline env block.
+    const envFilename = project.config?.envFile ?? '.env.forge';
+    if (envFilename !== false) {
+      writeEnvFile(project.path, envFilename, project.allocations ?? {}, project.config);
+    }
+
     processManager.restart(
       req.params.name, req.params.processName,
       project.config?.processes ?? [], project.allocations ?? {}, project.path, project.config?.services ?? {}
