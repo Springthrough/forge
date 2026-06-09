@@ -1,3 +1,10 @@
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+jest.mock('child_process');
+const { execSync } = require('child_process');
+
 const systemd = require('../../src/cli/service/systemd');
 
 describe('systemd.generateUnit', () => {
@@ -12,5 +19,37 @@ describe('systemd.generateUnit', () => {
     expect(unit).toContain('StandardOutput=append:/home/u/.forge/daemon.log');
     expect(unit).toContain('StandardError=append:/home/u/.forge/daemon.error.log');
     expect(unit).toContain('WantedBy=default.target');
+  });
+});
+
+describe('systemd.install', () => {
+  let configHome;
+
+  beforeEach(() => {
+    configHome = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-systemd-cfg-'));
+    process.env.XDG_CONFIG_HOME = configHome;
+    execSync.mockReset();
+  });
+
+  afterEach(() => {
+    fs.rmSync(configHome, { recursive: true, force: true });
+    delete process.env.XDG_CONFIG_HOME;
+  });
+
+  test('writes the unit file to $XDG_CONFIG_HOME/systemd/user/forge.service', () => {
+    systemd.install();
+    const unitPath = path.join(configHome, 'systemd', 'user', 'forge.service');
+    expect(fs.existsSync(unitPath)).toBe(true);
+    expect(fs.readFileSync(unitPath, 'utf8')).toContain('ExecStart=');
+  });
+
+  test('runs systemctl daemon-reload, enable, restart (in that order)', () => {
+    systemd.install();
+    const calls = execSync.mock.calls.map(c => c[0]);
+    expect(calls).toEqual([
+      'systemctl --user daemon-reload',
+      'systemctl --user enable forge.service',
+      'systemctl --user restart forge.service',
+    ]);
   });
 });
