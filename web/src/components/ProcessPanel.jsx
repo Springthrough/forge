@@ -18,6 +18,7 @@ export default function ProcessPanel({
   isCentered = false,
   onToggleFullscreen,
   onCardClick,
+  onHeaderDoubleClick,
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: process.name });
@@ -53,6 +54,11 @@ export default function ProcessPanel({
     onToggleFullscreen?.();
   };
 
+  const handleHeaderDoubleClick = (e) => {
+    e.stopPropagation();
+    onHeaderDoubleClick?.();
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -65,7 +71,7 @@ export default function ProcessPanel({
         `${isCarousel && !isCentered ? ' process-panel--peek' : ''}`
       }
     >
-      <div className="process-panel__header" onDoubleClick={handleToggleFullscreen}>
+      <div className="process-panel__header" onDoubleClick={handleHeaderDoubleClick}>
         <span
           className="drag-handle"
           {...attributes}

@@ -246,6 +246,11 @@ export default function ProjectTab({ project, onProjectUpdate }) {
                   onToggleFullscreen={() =>
                     setFullscreenName(prev => prev === proc.name ? null : proc.name)
                   }
+                  onHeaderDoubleClick={
+                    viewMode === 'grid'
+                      ? () => setFullscreenName(prev => prev === proc.name ? null : proc.name)
+                      : undefined
+                  }
                   onCardClick={isCarousel && !isCentered ? () => centerCard(proc.name) : undefined}
                 />
               );
