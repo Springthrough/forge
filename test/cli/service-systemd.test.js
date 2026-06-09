@@ -53,3 +53,39 @@ describe('systemd.install', () => {
     ]);
   });
 });
+
+describe('systemd.uninstall', () => {
+  let configHome;
+
+  beforeEach(() => {
+    configHome = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-systemd-cfg-'));
+    process.env.XDG_CONFIG_HOME = configHome;
+    execSync.mockReset();
+  });
+
+  afterEach(() => {
+    fs.rmSync(configHome, { recursive: true, force: true });
+    delete process.env.XDG_CONFIG_HOME;
+  });
+
+  test('stops + disables service and removes the unit file', () => {
+    const target = path.join(configHome, 'systemd', 'user', 'forge.service');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, 'placeholder');
+
+    systemd.uninstall();
+
+    expect(fs.existsSync(target)).toBe(false);
+    const calls = execSync.mock.calls.map(c => c[0]);
+    expect(calls).toEqual([
+      'systemctl --user stop forge.service',
+      'systemctl --user disable forge.service',
+      'systemctl --user daemon-reload',
+    ]);
+  });
+
+  test('is a no-op when not installed', () => {
+    systemd.uninstall();
+    expect(execSync).not.toHaveBeenCalled();
+  });
+});

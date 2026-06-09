@@ -49,4 +49,13 @@ function install() {
   execSync('systemctl --user restart forge.service', { stdio: 'ignore' });
 }
 
-module.exports = { generateUnit, install, unitPath };
+function uninstall() {
+  const target = unitPath();
+  if (!fs.existsSync(target)) return;
+  try { execSync('systemctl --user stop forge.service', { stdio: 'ignore' }); } catch {}
+  try { execSync('systemctl --user disable forge.service', { stdio: 'ignore' }); } catch {}
+  fs.unlinkSync(target);
+  try { execSync('systemctl --user daemon-reload', { stdio: 'ignore' }); } catch {}
+}
+
+module.exports = { generateUnit, install, uninstall, unitPath };
