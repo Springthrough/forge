@@ -9,3 +9,6 @@ coverage/
 web/dist/
 web/node_modules/
 .superpowers/
+
+# Internal planning/spec docs
+docs/superpowers/
