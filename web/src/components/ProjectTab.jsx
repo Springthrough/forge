@@ -247,7 +247,7 @@ export default function ProjectTab({ project, onProjectUpdate }) {
                     setFullscreenName(prev => prev === proc.name ? null : proc.name)
                   }
                   onHeaderDoubleClick={
-                    viewMode === 'grid'
+                    viewMode === 'grid' || isFs
                       ? () => setFullscreenName(prev => prev === proc.name ? null : proc.name)
                       : undefined
                   }
