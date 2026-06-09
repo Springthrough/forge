@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // npm tarball extraction sometimes drops the executable bit on node-pty's
-// prebuilt spawn-helper. Without it, every pty.spawn() throws "posix_spawnp
-// failed." Restore +x here so installs are usable out of the box.
+// prebuilt spawn-helper. Restore +x here so installs are usable out of the box.
+if (process.platform === 'win32') process.exit(0);
+
 const fs = require('fs');
 const path = require('path');
 
