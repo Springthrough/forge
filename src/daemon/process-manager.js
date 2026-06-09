@@ -146,7 +146,7 @@ function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit, envCo
         // Normalize any embedded newlines to \r\n before writing to the
         // xterm buffer — xterm treats \n as a line-feed only (no column reset),
         // which would render multi-line errors with a jagged left margin.
-        const errorText = String(result.error).replace(/\n/g, '\r\n');
+        const errorText = String(result.error).replace(/\r?\n/g, '\r\n');
         const msg = `\r\n\x1b[31m[forge] envFileCommand failed for "${proc.name}": ${errorText}\x1b[0m\r\n`;
         // Push as a single entry (not through appendToBuffer) so that \r\n
         // sequences within the message are preserved intact for xterm rendering.
@@ -165,7 +165,7 @@ function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit, envCo
     } catch (err) {
       record.status = 'crashed';
       record.startedAt = null;
-      const errText = String(err.message ?? err).replace(/\n/g, '\r\n');
+      const errText = String(err.message ?? err).replace(/\r?\n/g, '\r\n');
       const msg = `\r\n\x1b[31mFailed to start: ${errText}\x1b[0m\r\n`;
       appendToBuffer(record.buffer, msg);
       emit(k, { type: 'status', status: 'crashed' });

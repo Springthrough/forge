@@ -558,6 +558,33 @@ test('envFileCommand failure prevents spawn and records error in buffer', async 
   expect(buf).toMatch(/exit 1\r\nstderr/);
 });
 
+test('envFileCommand failure with CRLF-tainted stderr does not produce \\r\\r\\n', async () => {
+  // Regression: some decrypt tools emit CRLF on stderr. A naive /\n/g
+  // normalizer would turn the \n inside \r\n into \r\n, yielding \r\r\n
+  // which xterm renders with a double carriage return glitch.
+  const crlfPm = createProcessManager({
+    ptySpawn: (command, env, cwd) => {
+      const mock = makeMockPty();
+      spawnCalls.push({ command, env, cwd, mock });
+      return mock;
+    },
+    envCommandRunner: async () => ({ ok: false, error: 'exit 1\r\nstderr:\r\noops' }),
+  });
+  const configs = [{
+    name: 'api',
+    command: 'npm start',
+    cwd: '.',
+    ports: [3000],
+    portEnv: 'PORT',
+    envFileCommand: ['decrypt-tool', 'secrets.enc'],
+  }];
+  await crlfPm.up('sai', configs, allocations, '/projects/sai');
+
+  const buf = crlfPm.getBuffer('sai', 'api').join('');
+  expect(buf).not.toMatch(/\r\r\n/);
+  expect(buf).toMatch(/exit 1\r\nstderr/);
+});
+
 test('non-array envFileCommand fails through helper validation (not silently skipped)', async () => {
   // Regression guard: a string-typed envFileCommand (user config error) MUST
   // surface as a clear failure, not silently spawn without secrets.
