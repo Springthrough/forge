@@ -58,7 +58,7 @@ test('up() does not inject portEnv when port is absent', async () => {
 test('up() resolves cwd relative to projectPath', async () => {
   const configs = [{ name: 'api', command: 'npm start', cwd: 'packages/api', ports: [] }];
   await pm.up('sai', configs, {}, '/projects/sai');
-  expect(spawnCalls[0].cwd).toBe('/projects/sai/packages/api');
+  expect(spawnCalls[0].cwd).toBe(path.resolve('/projects/sai', 'packages/api'));
 });
 
 test('up() skips already-running processes', async () => {
