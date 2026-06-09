@@ -182,6 +182,20 @@ test('down() emits stopped status event to subscribers', async () => {
   expect(events.some(e => e.type === 'status' && e.status === 'stopped')).toBe(true);
 });
 
+test('down() sweeps live processes that are no longer in the passed config list', async () => {
+  await pm.up('sai', processConfigs, allocations, '/projects/sai');
+  expect(pm.isRunning('sai', 'api')).toBe(true);
+  expect(pm.isRunning('sai', 'worker')).toBe(true);
+
+  // Caller passes a list that no longer includes "worker" (e.g. config was edited
+  // to remove it). The sweep should still kill it.
+  const trimmed = processConfigs.filter(p => p.name !== 'worker');
+  await pm.down('sai', trimmed);
+
+  expect(pm.isRunning('sai', 'api')).toBe(false);
+  expect(pm.isRunning('sai', 'worker')).toBe(false);
+});
+
 test('killAll() cleans up listeners so no further events are emitted', async () => {
   await pm.up('sai', processConfigs, allocations, '/projects/sai');
   pm.killAll();

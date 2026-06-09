@@ -256,6 +256,14 @@ function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit } = {}
           }
           if (exitPromises.length > 0) await Promise.all(exitPromises);
         }
+        // Sweep: kill any live processes for this project that weren't in the
+        // passed config list (e.g. processes removed from config.json since the
+        // last refresh). killOne is idempotent on already-deleted keys.
+        for (const k of [...processes.keys()]) {
+          if (k.startsWith(`${projectName}:`)) {
+            killOne(projectName, k.slice(projectName.length + 1));
+          }
+        }
       } else {
         for (const k of [...processes.keys()]) {
           if (k.startsWith(`${projectName}:`)) {
