@@ -174,16 +174,48 @@ body {
 .project-tab { display: flex; flex-direction: column; height: 100%; }
 .project-tab__header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 10px;
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+.project-tab__header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 .project-tab__title { display: flex; align-items: baseline; gap: 10px; }
 .project-tab__name  { font-size: 14px; font-weight: 600; }
 .project-tab__path  { font-size: 10px; color: var(--text-secondary); }
 .project-tab__actions { display: flex; gap: 8px; }
+.project-tab__chips {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+.project-tab__chip {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 80ms, color 80ms, border-color 80ms;
+}
+.project-tab__chip:hover { background: var(--bg-overlay); color: var(--text-primary); }
+.project-tab__chip--active {
+  color: var(--text-primary);
+  background: var(--bg-overlay);
+  border-color: var(--accent);
+}
 .process-list {
   flex: 1;
   overflow: auto;

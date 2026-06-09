@@ -213,21 +213,37 @@ export default function ProjectTab({ project, onProjectUpdate }) {
   return (
     <div className="project-tab">
       <div className="project-tab__header">
-        <div className="project-tab__title">
-          <span className="project-tab__name">{project.name}</span>
-          <span className="project-tab__path">{project.path}</span>
+        <div className="project-tab__header-row">
+          <div className="project-tab__title">
+            <span className="project-tab__name">{project.name}</span>
+            <span className="project-tab__path">{project.path}</span>
+          </div>
+          <div className="project-tab__actions">
+            <button
+              className="btn btn--sm"
+              onClick={() => setViewMode(m => m === 'carousel' ? 'grid' : 'carousel')}
+              title={viewMode === 'carousel' ? 'switch to grid view' : 'switch to carousel view'}
+            >
+              {viewMode === 'carousel' ? '⊞ grid' : '⏵⏴ carousel'}
+            </button>
+            <button className="btn btn--success btn--sm" onClick={handleUpAll}>▶ up all</button>
+            <button className="btn btn--danger btn--sm" onClick={handleDownAll}>■ down all</button>
+          </div>
         </div>
-        <div className="project-tab__actions">
-          <button
-            className="btn btn--sm"
-            onClick={() => setViewMode(m => m === 'carousel' ? 'grid' : 'carousel')}
-            title={viewMode === 'carousel' ? 'switch to grid view' : 'switch to carousel view'}
-          >
-            {viewMode === 'carousel' ? '⊞ grid' : '⏵⏴ carousel'}
-          </button>
-          <button className="btn btn--success btn--sm" onClick={handleUpAll}>▶ up all</button>
-          <button className="btn btn--danger btn--sm" onClick={handleDownAll}>■ down all</button>
-        </div>
+        {viewMode === 'carousel' && !fullscreenName && orderedProcesses.length > 1 && (
+          <div className="project-tab__chips">
+            {orderedProcesses.map(proc => (
+              <button
+                key={proc.name}
+                className={`project-tab__chip${proc.name === centeredName ? ' project-tab__chip--active' : ''}`}
+                onClick={() => centerCard(proc.name)}
+                title={proc.name}
+              >
+                {proc.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
