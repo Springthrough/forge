@@ -306,6 +306,7 @@ body {
 .services-section__header {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   cursor: pointer;
   user-select: none;
@@ -315,12 +316,14 @@ body {
   font-size: 11px;
   color: var(--text-secondary);
   width: 10px;
+  text-align: center;
 }
 .services-section__chips {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
   gap: 6px;
-  flex: 1;
 }
 .service-chip {
   display: inline-flex;
