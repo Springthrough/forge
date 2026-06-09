@@ -1,9 +1,9 @@
-// src/cli/launchd.js
+// src/cli/service/launchd.js
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { FORGE_PORT } = require('../constants');
+const { FORGE_PORT } = require('../../constants');
 
 const LABEL = 'com.forge.daemon';
 const FORGE_DIR = path.join(os.homedir(), '.forge');
@@ -34,14 +34,13 @@ function generatePlist(daemonScript) {
 }
 
 function install() {
-  const daemonScript = path.resolve(__dirname, '../../src/daemon/server.js');
+  const daemonScript = path.resolve(__dirname, '../../daemon/server.js');
 
   // Create ~/.forge/ before writing the plist — launchd requires the log
   // directory to exist when it starts the daemon for the first time.
   fs.mkdirSync(FORGE_DIR, { recursive: true });
 
-  const plistDir = path.dirname(PLIST_PATH);
-  fs.mkdirSync(plistDir, { recursive: true });
+  fs.mkdirSync(path.dirname(PLIST_PATH), { recursive: true });
   fs.writeFileSync(PLIST_PATH, generatePlist(daemonScript));
 
   try { execSync(`launchctl unload "${PLIST_PATH}"`, { stdio: 'ignore' }); } catch {}
@@ -54,4 +53,8 @@ function uninstall() {
   fs.unlinkSync(PLIST_PATH);
 }
 
-module.exports = { install, uninstall, PLIST_PATH };
+function isInstalled() {
+  return fs.existsSync(PLIST_PATH);
+}
+
+module.exports = { install, uninstall, isInstalled };

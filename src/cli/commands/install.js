@@ -11,7 +11,7 @@ module.exports = function registerInstall(program) {
         console.error(chalk.red('forge install currently only supports macOS (launchd)'));
         process.exit(1);
       }
-      const { install } = require('../launchd');
+      const { install } = require('../service/launchd');
       console.log('Installing forge daemon...');
       install();
 
