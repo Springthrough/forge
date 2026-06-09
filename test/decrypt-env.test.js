@@ -51,3 +51,13 @@ test('inherits parent process.env (so PATH / agents are visible to the child)', 
   expect(result.ok).toBe(true);
   expect(result.env.HOME_PRESENT).toBe('yes');
 });
+
+test('reports a friendly "command not found" error when the binary is missing', async () => {
+  // "exit ENOENT" is a confusing diagnostic — the binary never ran. Report it
+  // as a spawn failure instead.
+  const result = await runEnvCommand(['this-binary-does-not-exist-9821'], process.cwd(), 5000);
+  expect(result.ok).toBe(false);
+  expect(result.error).toMatch(/command not found or not executable/);
+  expect(result.error).toMatch(/this-binary-does-not-exist-9821/);
+  expect(result.error).not.toMatch(/^exit ENOENT/);
+});

@@ -14,6 +14,15 @@ function runEnvCommand(argv, cwd, timeoutMs = 30_000) {
       (err, stdout, stderr) => {
         clearTimeout(killEscalation);
         if (err) {
+          // Spawn-level errors (ENOENT, EACCES) come with syscall='spawn' and
+          // a string err.code. Report them as "command not found" rather than
+          // the misleading "exit ENOENT".
+          if (err.syscall === 'spawn' || err.syscall?.startsWith('spawn ')) {
+            return resolve({
+              ok: false,
+              error: `command not found or not executable: ${argv[0]} (${err.code ?? err.message})`,
+            });
+          }
           // execFile sets err.signal='SIGTERM' when its own timeout fires.
           if (err.killed || err.signal === 'SIGTERM' || err.signal === 'SIGKILL') {
             return resolve({

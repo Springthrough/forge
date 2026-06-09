@@ -140,6 +140,10 @@ function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit, envCo
 
     if (proc.envFileCommand) {
       const result = await envCommandRunner(proc.envFileCommand, projectPath);
+      // Bail out if killOne ran during the await (record removed from the map).
+      // Without this guard, the spawn below would create an orphaned PTY that's
+      // invisible to getStatuses/stopProcess and can't be killed by forge.
+      if (processes.get(k) !== record) return;
       if (!result.ok) {
         record.status = 'crashed';
         record.startedAt = null;

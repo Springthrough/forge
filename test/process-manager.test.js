@@ -624,3 +624,40 @@ test('startOne behaves unchanged when envFileCommand is absent', async () => {
   await pm.up('sai', processConfigs, allocations, '/projects/sai');
   expect(spawnCalls).toHaveLength(2);
 });
+
+test('startOne does not spawn an orphan PTY if down() races a slow envFileCommand', async () => {
+  // Regression for the race: user issues `forge down` while a long-running
+  // envCommandRunner is still resolving. killOne removes the record from the
+  // map; when the await resolves, startOne must NOT proceed to spawnFn —
+  // otherwise we'd create an orphaned PTY that can never be killed.
+  let releaseRunner;
+  const racePm = createProcessManager({
+    ptySpawn: (command, env, cwd) => {
+      const mock = makeMockPty();
+      spawnCalls.push({ command, env, cwd, mock });
+      return mock;
+    },
+    envCommandRunner: () => new Promise(res => { releaseRunner = res; }),
+  });
+  const configs = [{
+    name: 'api',
+    command: 'npm start',
+    cwd: '.',
+    ports: [3000],
+    portEnv: 'PORT',
+    envFileCommand: ['slow-decrypt'],
+  }];
+  // Kick off startProcess but don't await yet.
+  const upPromise = racePm.up('sai', configs, allocations, '/projects/sai');
+  // Simulate user calling forge down while the runner is still suspended.
+  // (The full down() can't run because it'd find the live-map record and try
+  // to kill a non-existent PTY. Use stopProcess + manual record removal to
+  // simulate killOne's effect on this code path.)
+  await new Promise(setImmediate);
+  racePm.stopProcess('sai', 'api');
+  // Now resolve the runner with success — the merge-and-spawn path will run.
+  releaseRunner({ ok: true, env: { SECRET: 'x' } });
+  await upPromise;
+  // The bail-out guard must prevent spawnFn from being called.
+  expect(spawnCalls).toHaveLength(0);
+});
