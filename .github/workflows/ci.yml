@@ -28,7 +28,11 @@ jobs:
       - run: node scripts/fix-node-pty-perms.js
         if: matrix.os != 'windows-latest'
 
-      - run: npm install --prefix web
+      # Use working-directory instead of `--prefix web` because on Windows
+      # `--prefix` re-triggers the root's `prepare` script (infinite recursion
+       # — every layer adds another `npm error npm error...` prefix).
+      - run: npm ci
+        working-directory: web
 
       - run: npm run build:web
 
