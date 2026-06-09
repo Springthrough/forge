@@ -16,6 +16,12 @@ After bumping version in `package.json` and pushing:
    systemctl --user restart forge.service
    ```
 
+   On Windows (cmd or PowerShell):
+   ```cmd
+   schtasks /End /TN \Forge\ForgeDaemon
+   schtasks /Run /TN \Forge\ForgeDaemon
+   ```
+
    Then verify with `forge version` — both CLI and daemon should show the same version with no mismatch warning.
 
 2. **Publish to npm** — publishing is triggered by a version tag, not a branch push. After bumping the version and pushing the commit, create and push the tag:
