@@ -5,6 +5,7 @@ const http = require('http');
 const { parseEnvFile } = require('../parse-env-file');
 const { runEnvCommand } = require('./decrypt-env');
 const { buildStartOrder } = require('./dependency-resolver');
+const { killProcessTree, isProcessTreeAlive, waitForProcessTreeDead } = require('./process-kill');
 
 const MAX_BUFFER = 200;
 
@@ -34,26 +35,6 @@ function defaultPollPort(port, timeoutMs) {
       });
     }
     attempt();
-  });
-}
-
-// Polls until the process group (pgid) has no living members or timeout elapses.
-// Needed because node-pty's onExit only tracks the direct child (shell/yarn), not
-// grandchildren like vite. Killing -pgid sends SIGTERM to the whole group, and this
-// waits until the OS confirms they're all gone.
-function waitForPgroupDead(pgid, timeoutMs = 2000) {
-  return new Promise(resolve => {
-    const deadline = Date.now() + timeoutMs;
-    function check() {
-      try {
-        process.kill(-pgid, 0); // signal 0 = existence check, throws ESRCH if gone
-        if (Date.now() >= deadline) return resolve();
-        setTimeout(check, 50);
-      } catch {
-        resolve(); // ESRCH — process group is gone
-      }
-    }
-    check();
   });
 }
 
@@ -249,7 +230,7 @@ function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit, envCo
   function killOne(projectName, processName) {
     const k = key(projectName, processName);
     const record = processes.get(k);
-    if (record?.pid) { try { process.kill(-record.pid, 'SIGTERM'); } catch {} }
+    killProcessTree(record);
     if (record?.ptyProcess) { try { record.ptyProcess.kill(); } catch {} }
     emit(k, { type: 'status', status: 'stopped' });
     processes.delete(k);
@@ -282,10 +263,10 @@ function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit, envCo
                   clearTimeout(timer);
                   // Wait for grandchildren (e.g. vite spawned by yarn) to die too —
                   // PTY onExit only fires when the direct child exits, not descendants.
-                  if (pgid) await waitForPgroupDead(pgid);
+                  if (pgid) await waitForProcessTreeDead(pgid);
                   resolve();
                 });
-                if (pgid) { try { process.kill(-pgid, 'SIGTERM'); } catch {} }
+                if (pgid) killProcessTree({ pid: pgid });
                 try { record.ptyProcess.kill(); } catch {}
               }));
             }
@@ -391,7 +372,7 @@ function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit, envCo
 
     killAll() {
       for (const [, record] of processes) {
-        if (record?.pid) { try { process.kill(-record.pid, 'SIGTERM'); } catch {} }
+        killProcessTree(record);
         if (record?.ptyProcess) { try { record.ptyProcess.kill(); } catch {} }
       }
       processes.clear();
