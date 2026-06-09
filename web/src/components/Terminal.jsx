@@ -4,6 +4,15 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 
+// Matches the grid column breakpoints in main.css.
+const wideQuery = window.matchMedia('(min-width: 1400px)');
+const medQuery  = window.matchMedia('(min-width: 900px)');
+function viewportFontSize() {
+  if (wideQuery.matches) return 10;  // 3-col
+  if (medQuery.matches)  return 11;  // 2-col
+  return 12;                          // 1-col
+}
+
 export default function Terminal({ projectName, processName }) {
   const containerRef = useRef(null);
 
@@ -16,7 +25,7 @@ export default function Terminal({ projectName, processName }) {
         selection:  'rgba(248,241,227,0.2)',
       },
       fontFamily: 'SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace',
-      fontSize: 12,
+      fontSize: viewportFontSize(),
       cursorBlink: true,
       scrollback: 1000,
     });
@@ -53,7 +62,19 @@ export default function Terminal({ projectName, processName }) {
     });
     observer.observe(containerRef.current);
 
+    const onBreakpointChange = () => {
+      term.options.fontSize = viewportFontSize();
+      try { fit.fit(); } catch {}
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+      }
+    };
+    wideQuery.addEventListener('change', onBreakpointChange);
+    medQuery.addEventListener('change',  onBreakpointChange);
+
     return () => {
+      wideQuery.removeEventListener('change', onBreakpointChange);
+      medQuery.removeEventListener('change',  onBreakpointChange);
       observer.disconnect();
       ws.close();
       term.dispose();
