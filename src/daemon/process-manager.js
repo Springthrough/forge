@@ -11,7 +11,12 @@ const MAX_BUFFER = 200;
 function getDefaultShell(platform = process.platform) {
   if (process.env.SHELL) return process.env.SHELL;
   if (platform === 'darwin') return '/bin/zsh';
+  if (platform === 'win32')  return process.env.COMSPEC || 'cmd.exe';
   return '/bin/sh';
+}
+
+function getShellInvokeFlag(platform = process.platform) {
+  return platform === 'win32' ? '/c' : '-c';
 }
 
 function defaultPollPort(port, timeoutMs) {
@@ -95,7 +100,7 @@ function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit, envCo
   const spawnFn = ptySpawn ?? function(command, env, cwd) {
     const pty = require('node-pty'); // lazy — not loaded in tests that inject ptySpawn
     const shell = getDefaultShell();
-    return pty.spawn(shell, ['-c', command], {
+    return pty.spawn(shell, [getShellInvokeFlag(), command], {
       name: 'xterm-256color', cols: 120, rows: 30,
       cwd, env: { ...process.env, TERM: 'xterm-256color', ...env },
     });
@@ -394,4 +399,4 @@ function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit, envCo
   };
 }
 
-module.exports = { createProcessManager, getDefaultShell };
+module.exports = { createProcessManager, getDefaultShell, getShellInvokeFlag };

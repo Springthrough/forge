@@ -688,3 +688,50 @@ test('startOne does not spawn an orphan PTY if down() races a slow envFileComman
   // The bail-out guard must prevent spawnFn from being called.
   expect(spawnCalls).toHaveLength(0);
 });
+
+const { getShellInvokeFlag } = require('../src/daemon/process-manager');
+
+describe('getShellInvokeFlag', () => {
+  test('returns -c on POSIX platforms', () => {
+    expect(getShellInvokeFlag('darwin')).toBe('-c');
+    expect(getShellInvokeFlag('linux')).toBe('-c');
+  });
+
+  test('returns /c on win32', () => {
+    expect(getShellInvokeFlag('win32')).toBe('/c');
+  });
+
+  test('defaults to process.platform when called with no args', () => {
+    const expected = process.platform === 'win32' ? '/c' : '-c';
+    expect(getShellInvokeFlag()).toBe(expected);
+  });
+});
+
+describe('getDefaultShell — win32 branch', () => {
+  const savedShell = process.env.SHELL;
+  const savedComspec = process.env.COMSPEC;
+
+  afterEach(() => {
+    if (savedShell === undefined) delete process.env.SHELL;
+    else process.env.SHELL = savedShell;
+    if (savedComspec === undefined) delete process.env.COMSPEC;
+    else process.env.COMSPEC = savedComspec;
+  });
+
+  test('returns process.env.SHELL when set, even on win32', () => {
+    process.env.SHELL = '/usr/bin/fish';
+    expect(getDefaultShell('win32')).toBe('/usr/bin/fish');
+  });
+
+  test('falls back to COMSPEC on win32 when SHELL is unset', () => {
+    delete process.env.SHELL;
+    process.env.COMSPEC = 'C:\\Windows\\System32\\cmd.exe';
+    expect(getDefaultShell('win32')).toBe('C:\\Windows\\System32\\cmd.exe');
+  });
+
+  test('falls back to literal "cmd.exe" on win32 when SHELL and COMSPEC are unset', () => {
+    delete process.env.SHELL;
+    delete process.env.COMSPEC;
+    expect(getDefaultShell('win32')).toBe('cmd.exe');
+  });
+});
