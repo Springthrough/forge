@@ -313,7 +313,6 @@ export default function ProjectTab({ project, onProjectUpdate }) {
             onClick={() => setServicesCollapsed(c => !c)}
             title={servicesCollapsed ? 'expand shared services' : 'collapse shared services'}
           >
-            <span className="services-section__chevron">{servicesCollapsed ? '▸' : '▾'}</span>
             <span className="section-label">Shared Services</span>
             {servicesCollapsed && (
               <div className="services-section__chips">

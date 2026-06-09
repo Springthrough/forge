@@ -312,12 +312,6 @@ body {
   user-select: none;
   flex-wrap: wrap;
 }
-.services-section__chevron {
-  font-size: 11px;
-  color: var(--text-secondary);
-  width: 10px;
-  text-align: center;
-}
 .services-section__chips {
   display: flex;
   flex-wrap: wrap;
