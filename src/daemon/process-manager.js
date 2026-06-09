@@ -3,6 +3,7 @@ const path = require('path');
 const net = require('net');
 const http = require('http');
 const { parseEnvFile } = require('../parse-env-file');
+const { runEnvCommand } = require('./decrypt-env');
 const { buildStartOrder } = require('./dependency-resolver');
 
 const MAX_BUFFER = 200;
@@ -84,7 +85,7 @@ function defaultWaitForExit(ptyProc, timeoutMs) {
   });
 }
 
-function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit } = {}) {
+function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit, envCommandRunner = runEnvCommand } = {}) {
   const spawnFn = ptySpawn ?? function(command, env, cwd) {
     const pty = require('node-pty'); // lazy — not loaded in tests that inject ptySpawn
     const shell = process.env.SHELL || '/bin/zsh';
@@ -137,13 +138,35 @@ function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit } = {}
     const record = { status: 'running', startedAt: Date.now(), buffer: [], pid: null, ptyProcess: null };
     processes.set(k, record);
 
+    if (proc.envFileCommand) {
+      const result = await envCommandRunner(proc.envFileCommand, projectPath);
+      if (!result.ok) {
+        record.status = 'crashed';
+        record.startedAt = null;
+        // Normalize any embedded newlines to \r\n before writing to the
+        // xterm buffer — xterm treats \n as a line-feed only (no column reset),
+        // which would render multi-line errors with a jagged left margin.
+        const errorText = String(result.error).replace(/\n/g, '\r\n');
+        const msg = `\r\n\x1b[31m[forge] envFileCommand failed for "${proc.name}": ${errorText}\x1b[0m\r\n`;
+        // Push as a single entry (not through appendToBuffer) so that \r\n
+        // sequences within the message are preserved intact for xterm rendering.
+        record.buffer.push(msg);
+        if (record.buffer.length > MAX_BUFFER) record.buffer.splice(0, record.buffer.length - MAX_BUFFER);
+        emit(k, { type: 'status', status: 'crashed' });
+        emit(k, { type: 'output', data: msg });
+        return;
+      }
+      Object.assign(env, result.env);
+    }
+
     let ptyProc;
     try {
       ptyProc = spawnFn(proc.command, env, cwd);
     } catch (err) {
       record.status = 'crashed';
       record.startedAt = null;
-      const msg = `\r\n\x1b[31mFailed to start: ${err.message}\x1b[0m\r\n`;
+      const errText = String(err.message ?? err).replace(/\n/g, '\r\n');
+      const msg = `\r\n\x1b[31mFailed to start: ${errText}\x1b[0m\r\n`;
       appendToBuffer(record.buffer, msg);
       emit(k, { type: 'status', status: 'crashed' });
       emit(k, { type: 'output', data: msg });

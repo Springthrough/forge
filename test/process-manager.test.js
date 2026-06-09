@@ -494,3 +494,106 @@ test('startProcess() does not re-spawn already-running dependency', async () => 
   expect(newCommands).not.toContain('api');
   expect(newCommands).toContain('app');
 });
+
+test('startProcess merges envFileCommand output on top of inline env and envFile', async () => {
+  const localPm = createProcessManager({
+    ptySpawn: (command, env, cwd) => {
+      const mock = makeMockPty();
+      spawnCalls.push({ command, env, cwd, mock });
+      return mock;
+    },
+    envCommandRunner: async (argv) => {
+      expect(argv).toEqual(['decrypt-tool', 'secrets.enc']);
+      return { ok: true, env: { SECRET_KEY: 'decrypted-value', LOG_LEVEL: 'debug' } };
+    },
+  });
+  const configs = [{
+    name: 'api',
+    command: 'npm start',
+    cwd: '.',
+    ports: [3000],
+    portEnv: 'PORT',
+    env: { LOG_LEVEL: 'info', PUBLIC_VAR: 'visible' },
+    envFileCommand: ['decrypt-tool', 'secrets.enc'],
+  }];
+  await localPm.up('sai', configs, allocations, '/projects/sai');
+
+  expect(spawnCalls).toHaveLength(1);
+  const apiEnv = spawnCalls[0].env;
+  expect(apiEnv.SECRET_KEY).toBe('decrypted-value');     // from envFileCommand
+  expect(apiEnv.LOG_LEVEL).toBe('debug');                // envFileCommand overrides inline env
+  expect(apiEnv.PUBLIC_VAR).toBe('visible');             // inline still passes through
+  expect(apiEnv.PORT).toBe('3000');                      // portEnv still injected
+});
+
+test('envFileCommand failure prevents spawn and records error in buffer', async () => {
+  const failPm = createProcessManager({
+    ptySpawn: (command, env, cwd) => {
+      const mock = makeMockPty();
+      spawnCalls.push({ command, env, cwd, mock });
+      return mock;
+    },
+    envCommandRunner: async () => ({ ok: false, error: 'exit 1\nstderr:\nbad metadata' }),
+  });
+  const configs = [{
+    name: 'api',
+    command: 'npm start',
+    cwd: '.',
+    ports: [3000],
+    portEnv: 'PORT',
+    envFileCommand: ['decrypt-tool', 'secrets.enc'],
+  }];
+  await failPm.up('sai', configs, allocations, '/projects/sai');
+
+  // The process must NOT have been spawned.
+  expect(spawnCalls).toHaveLength(0);
+  // Status should be crashed.
+  expect(failPm.isRunning('sai', 'api')).toBe(false);
+  // The buffer should contain the structured error so the dashboard can show it.
+  const buf = failPm.getBuffer('sai', 'api').join('');
+  expect(buf).toMatch(/envFileCommand failed for "api"/);
+  expect(buf).toMatch(/exit 1/);
+  expect(buf).toMatch(/bad metadata/);
+  // Multi-line errors must use \r\n so xterm renders each line at column 0.
+  expect(buf).toMatch(/exit 1\r\nstderr/);
+});
+
+test('non-array envFileCommand fails through helper validation (not silently skipped)', async () => {
+  // Regression guard: a string-typed envFileCommand (user config error) MUST
+  // surface as a clear failure, not silently spawn without secrets.
+  const stringPm = createProcessManager({
+    ptySpawn: (command, env, cwd) => {
+      const mock = makeMockPty();
+      spawnCalls.push({ command, env, cwd, mock });
+      return mock;
+    },
+    envCommandRunner: async (argv) => {
+      // Real helper would return this; stub it here so the test doesn't depend on it.
+      if (!Array.isArray(argv) || argv.length === 0) {
+        return { ok: false, error: 'envFileCommand must be a non-empty array' };
+      }
+      return { ok: true, env: {} };
+    },
+  });
+  const configs = [{
+    name: 'api',
+    command: 'npm start',
+    cwd: '.',
+    ports: [3000],
+    portEnv: 'PORT',
+    envFileCommand: 'sops -d secrets.enc',   // wrong: string instead of array
+  }];
+  await stringPm.up('sai', configs, allocations, '/projects/sai');
+
+  expect(spawnCalls).toHaveLength(0);
+  expect(stringPm.isRunning('sai', 'api')).toBe(false);
+  const buf = stringPm.getBuffer('sai', 'api').join('');
+  expect(buf).toMatch(/envFileCommand must be a non-empty array/);
+});
+
+test('startOne behaves unchanged when envFileCommand is absent', async () => {
+  // Sanity: existing path is undisturbed. Uses the default real envCommandRunner,
+  // which is never called because no process declares envFileCommand.
+  await pm.up('sai', processConfigs, allocations, '/projects/sai');
+  expect(spawnCalls).toHaveLength(2);
+});
