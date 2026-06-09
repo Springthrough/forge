@@ -130,6 +130,29 @@ export default function ProjectTab({ project, onProjectUpdate }) {
     return () => el.removeEventListener('scroll', update);
   }, [viewMode, fullscreenName, processes.length]);
 
+  // Arrow-key navigation in carousel mode. Skips when focus is inside a
+  // terminal so a user typing in xterm isn't swiped accidentally.
+  useEffect(() => {
+    if (viewMode !== 'carousel' || fullscreenName) return;
+    function onKeyDown(e) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      if (document.activeElement?.closest?.('.xterm')) return;
+      const el = carouselRef.current;
+      if (!el) return;
+      const cards = Array.from(el.children);
+      const idx = cards.findIndex(c => c.dataset.processName === centeredName);
+      if (idx < 0) return;
+      const nextIdx = e.key === 'ArrowLeft' ? idx - 1 : idx + 1;
+      const target = cards[nextIdx];
+      if (target) {
+        e.preventDefault();
+        target.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [viewMode, fullscreenName, centeredName]);
+
   useEffect(() => {
     if (!project || processes.length === 0) return;
     try {
