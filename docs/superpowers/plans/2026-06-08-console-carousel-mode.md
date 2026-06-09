@@ -122,9 +122,23 @@ Add the state machine, the project-header toggle, and the class composition that
 - Modify: `web/src/components/ProjectTab.jsx`
 - Modify: `web/src/components/ProcessPanel.jsx`
 
-- [ ] **Step 1: Add `viewMode` state, project-change reset, and class composition in `ProjectTab.jsx`**
+- [ ] **Step 1: Add `viewMode` state, refs, project-change reset in `ProjectTab.jsx`**
 
-In `web/src/components/ProjectTab.jsx`, find the state block at the top of the `ProjectTab` component:
+In `web/src/components/ProjectTab.jsx`, find the React import on line 1:
+
+```jsx
+import { useState, useEffect, useCallback } from 'react';
+```
+
+Replace with:
+
+```jsx
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+```
+
+(`useRef` is for the carousel container and the previous-viewMode tracker added in this task; `useLayoutEffect` is used in Task 3 for synchronous scroll-position measurement before paint. Adding both here so subsequent tasks don't need to re-edit the import.)
+
+Then find the state block at the top of the `ProjectTab` component:
 
 ```jsx
   const processes    = useProjectProcesses(project?.name);
@@ -133,13 +147,15 @@ In `web/src/components/ProjectTab.jsx`, find the state block at the top of the `
   const { catalog, enabled, busy, toggle } = useServicesSection(project);
 ```
 
-Add `viewMode` state and extend the project-change reset effect:
+Add `viewMode` state, a ref to the carousel container, and a previous-viewMode tracker:
 
 ```jsx
   const processes    = useProjectProcesses(project?.name);
   const [order, setOrder] = useState([]);
   const [fullscreenName, setFullscreenName] = useState(null);
   const [viewMode, setViewMode] = useState('grid');
+  const carouselRef = useRef(null);
+  const prevViewModeRef = useRef('grid');
   const { catalog, enabled, busy, toggle } = useServicesSection(project);
 ```
 
@@ -201,7 +217,7 @@ Still in `ProjectTab.jsx`, find the `.process-list` JSX:
           <div className={`process-list${fullscreenName ? ' process-list--fullscreen' : ''}`}>
 ```
 
-Change both lines:
+Change both lines (and wire `ref={carouselRef}` into the `.process-list` div — needed for Task 3's scroll tracking and for this task's scroll-reset effect):
 
 ```jsx
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -210,11 +226,14 @@ Change both lines:
           strategy={rectSortingStrategy}
           disabled={viewMode === 'carousel' || !!fullscreenName}
         >
-          <div className={
-            fullscreenName        ? 'process-list process-list--fullscreen'
-            : viewMode === 'carousel' ? 'process-list process-list--carousel'
-            : 'process-list'
-          }>
+          <div
+            ref={carouselRef}
+            className={
+              fullscreenName        ? 'process-list process-list--fullscreen'
+              : viewMode === 'carousel' ? 'process-list process-list--carousel'
+              : 'process-list'
+            }
+          >
 ```
 
 (Fullscreen modifier wins regardless of `viewMode` — required so a fullscreen card fills its area rather than appearing as a 70 vw carousel item.)
@@ -250,13 +269,32 @@ Add `data-process-name`:
 
 (This attribute is used in Task 3's scroll handler to identify which card is centered.)
 
-- [ ] **Step 5: Build check**
+- [ ] **Step 5: Add scroll-reset effect for grid → carousel transitions**
+
+In `web/src/components/ProjectTab.jsx`, just after the existing project-change reset effect (the one that calls `setFullscreenName(null); setViewMode('grid');`), add:
+
+```jsx
+  // Spec: entering carousel from a non-carousel state resets to the first card
+  // (`scrollLeft = 0`). Fullscreen ↔ carousel transitions preserve scrollLeft —
+  // we guard with `prevViewModeRef.current !== 'carousel'` so this only fires
+  // on grid → carousel, not on fullscreen → carousel (where viewMode never
+  // changed and the previous value is already 'carousel').
+  useEffect(() => {
+    if (viewMode === 'carousel' && prevViewModeRef.current !== 'carousel' && !fullscreenName) {
+      const el = carouselRef.current;
+      if (el) el.scrollLeft = 0;
+    }
+    prevViewModeRef.current = viewMode;
+  }, [viewMode, fullscreenName]);
+```
+
+- [ ] **Step 6: Build check**
 
 ```bash
 cd /Users/mikewilliams/Source/brutalsystems/forge/web && npm run build
 ```
 
-- [ ] **Step 6: Verify in browser**
+- [ ] **Step 7: Verify in browser**
 
 Reload the dashboard. In a project tab:
 - A new `⏵⏴ carousel` button appears in the project header before `▶ up all`.
@@ -266,8 +304,9 @@ Reload the dashboard. In a project tab:
 - Switch to a different project tab; switch back. View should be back to grid (project-change reset).
 - Drag handle on the centered card is hidden (CSS rule from Task 1).
 - The `⤢` button on the centered card still works and fullscreens. Pressing Escape exits fullscreen — and you return to **carousel**, not grid, because `viewMode` was preserved.
+- **Scroll-reset check:** in carousel, swipe / wheel-scroll to a later card. Click `⊞ grid` then `⏵⏴ carousel` to come back. The first card should be centered (not the one you'd scrolled to). The `prevViewModeRef` guard ensures this.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 cd /Users/mikewilliams/Source/brutalsystems/forge && git add web/src/components/ProjectTab.jsx web/src/components/ProcessPanel.jsx && git commit -m "feat(web): add carousel viewMode with project-header toggle"
@@ -283,35 +322,26 @@ Add a scroll handler that figures out which card is closest to the carousel cent
 - Modify: `web/src/components/ProjectTab.jsx`
 - Modify: `web/src/components/ProcessPanel.jsx`
 
-- [ ] **Step 1: Add `carouselRef` and `centeredName` state in `ProjectTab.jsx`**
+**Note on `useRef` / `useLayoutEffect`:** both were imported in Task 2 Step 1. The `carouselRef` was declared and wired into the JSX in Task 2. This task only adds `centeredName` state plus the scroll-tracking layout effect.
 
-At the top of the file, the existing import of `useRef` may or may not be present. Find the React import:
+- [ ] **Step 1: Add `centeredName` state in `ProjectTab.jsx`**
 
-```jsx
-import { useState, useEffect, useCallback } from 'react';
-```
-
-Add `useRef`:
+In the `ProjectTab` component body, just after the `prevViewModeRef` declaration you added in Task 2 Step 1, add:
 
 ```jsx
-import { useState, useEffect, useCallback, useRef } from 'react';
-```
-
-Then, in the `ProjectTab` component body, just after the `viewMode` state declaration, add:
-
-```jsx
-  const carouselRef = useRef(null);
   const [centeredName, setCenteredName] = useState(null);
 ```
 
-- [ ] **Step 2: Add the scroll tracking effect**
+- [ ] **Step 2: Add the scroll-tracking layout effect**
 
-After the existing effects in `ProjectTab` (after the Escape effect, before the `useEffect` that loads `order` from localStorage), add a new effect:
+After the existing effects in `ProjectTab` (after the Escape effect and the scroll-reset effect you added in Task 2 Step 5, before the `useEffect` that loads `order` from localStorage), add:
 
 ```jsx
-  // Track which card is closest to the carousel center. Updates on scroll
-  // (with snap, this fires throughout the swipe and settles on the snapped card).
-  useEffect(() => {
+  // Track which card is closest to the carousel center. useLayoutEffect (not
+  // useEffect) so the very first paint after entering carousel already has
+  // `centeredName` set — avoids a one-frame flash where every card looks
+  // centered (no peek class applied yet).
+  useLayoutEffect(() => {
     if (viewMode !== 'carousel' || fullscreenName) {
       setCenteredName(null);
       return;
@@ -334,34 +364,9 @@ After the existing effects in `ProjectTab` (after the Escape effect, before the 
   }, [viewMode, fullscreenName, orderedProcesses.length]);
 ```
 
-(The `orderedProcesses.length` dep makes the effect re-attach if processes are added/removed — the scroll element's children change.)
+(The `orderedProcesses.length` dep makes the effect re-attach if processes are added/removed — the scroll element's children change. `useLayoutEffect` runs synchronously after DOM mutations but before paint, so `setCenteredName` triggers a synchronous re-render and the first visible frame already has the correct peek classes applied.)
 
-- [ ] **Step 3: Wire the carousel ref into the JSX**
-
-Find the `.process-list` `<div>` you edited in Task 2:
-
-```jsx
-          <div className={
-            fullscreenName        ? 'process-list process-list--fullscreen'
-            : viewMode === 'carousel' ? 'process-list process-list--carousel'
-            : 'process-list'
-          }>
-```
-
-Add `ref={carouselRef}`:
-
-```jsx
-          <div
-            ref={carouselRef}
-            className={
-              fullscreenName        ? 'process-list process-list--fullscreen'
-              : viewMode === 'carousel' ? 'process-list process-list--carousel'
-              : 'process-list'
-            }
-          >
-```
-
-- [ ] **Step 4: Add a `centerCard` callback and pass `isCentered` + `onCardClick` to each `ProcessPanel`**
+- [ ] **Step 3: Add a `centerCard` callback and pass `isCentered` + `onCardClick` to each `ProcessPanel`**
 
 In `ProjectTab`'s function body — alongside the other handler functions like `handleDragEnd`, `handleUpAll`, `handleDownAll`, **before** the `if (!project) return ...` early return — add:
 
@@ -424,7 +429,7 @@ Add `isCentered` and `onCardClick` props:
           </div>
 ```
 
-- [ ] **Step 5: Wire `isCarousel`, `isCentered`, and `onCardClick` into `ProcessPanel.jsx`**
+- [ ] **Step 4: Wire `isCarousel`, `isCentered`, and `onCardClick` into `ProcessPanel.jsx`**
 
 In `web/src/components/ProcessPanel.jsx`, change the function signature:
 
@@ -487,22 +492,23 @@ Replace with:
 
 (`onClick={onCardClick}` is `undefined` outside carousel and on the centered card, so it's effectively inert except when clicking peeks.)
 
-- [ ] **Step 6: Build check**
+- [ ] **Step 5: Build check**
 
 ```bash
 cd /Users/mikewilliams/Source/brutalsystems/forge/web && npm run build
 ```
 
-- [ ] **Step 7: Verify in browser**
+- [ ] **Step 6: Verify in browser**
 
 Reload. Enter carousel mode (`⏵⏴ carousel` button):
 - The two side peeks are faintly dimmed (`opacity: 0.7`) and have a `cursor: pointer`.
+- **No flash on entry:** the very first frame after clicking the toggle should already show the first card centered and side cards dimmed — there should NOT be a one-frame state where all cards look equally centered. (`useLayoutEffect` from Step 2 ensures this.)
 - Click the right peek. The carousel smoothly scrolls to center that card. Now the previous-right card is in the center, fully opaque; the previous-center is now a left peek.
 - Click anywhere on the peek (header, terminal area, buttons) — they all center the card (because peek children are `pointer-events: none`). Buttons on peeks do **not** fire restart/stop accidentally.
 - Click on the centered card's terminal — xterm receives the click (focuses the terminal). The centered card is fully interactive.
 - Click the centered card's `restart` button. It fires (the centered card is not a peek; no pointer-events override).
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 cd /Users/mikewilliams/Source/brutalsystems/forge && git add web/src/components/ProjectTab.jsx web/src/components/ProcessPanel.jsx && git commit -m "feat(web): click a peeked carousel card to center it"
