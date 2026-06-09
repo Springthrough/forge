@@ -293,7 +293,9 @@ git commit -m "fix(web): use dnd-kit rect strategy so grid reorder works"
 
 ## Task 4: Add fullscreen state, `⤢` toggle, double-click trigger
 
-This is the substantive task. `ProjectTab` owns a `fullscreenName` state. `ProcessPanel` learns to receive `isFullscreen` and `onToggleFullscreen`. Header double-click and a new `⤢` header button both call `onToggleFullscreen`. When `fullscreenName !== null`, `ProjectTab` renders only the matching panel (filling the body area) and hides the grid and the Shared Services section.
+This is the substantive task. `ProjectTab` owns a `fullscreenName` state. `ProcessPanel` learns to receive `isFullscreen`, `isHidden`, and `onToggleFullscreen`. Header double-click and a new `⤢` header button both call `onToggleFullscreen`.
+
+**Important — keep all panels mounted across mode switches.** A naive conditional render that swaps the JSX subtree between "grid" and "fullscreen" would unmount every `Terminal`, dispose its xterm instance, close its WebSocket, and reopen on toggle. That wipes scrollback. Instead, render all `ProcessPanel`s under the **same** `DndContext` / `SortableContext` / `.process-list` in both modes. When `fullscreenName !== null`, add a `--fullscreen` modifier class to the container, mark the matching panel `isFullscreen`, and mark every other panel `isHidden` (CSS sets `display: none` on hidden panels). xterm instances and WebSockets stay alive, scrollback is preserved.
 
 **Files:**
 - Modify: `web/src/components/ProjectTab.jsx`
@@ -310,7 +312,7 @@ In `web/src/components/ProjectTab.jsx`, find the line that adds local state at t
   const { catalog, enabled, busy, toggle } = useServicesSection(project);
 ```
 
-Add a `fullscreenName` state and an auto-exit effect right after that block:
+Add a `fullscreenName` state, a project-change reset effect, and an auto-exit effect right after that block:
 
 ```jsx
   const processes    = useProjectProcesses(project?.name);
@@ -318,14 +320,21 @@ Add a `fullscreenName` state and an auto-exit effect right after that block:
   const [fullscreenName, setFullscreenName] = useState(null);
   const { catalog, enabled, busy, toggle } = useServicesSection(project);
 
+  // Reset fullscreen when the user switches to a different project tab.
+  // App.jsx reuses the same ProjectTab instance across project changes, so
+  // state would otherwise leak across projects.
+  useEffect(() => {
+    setFullscreenName(null);
+  }, [project?.name]);
+
+  // Auto-exit fullscreen if the fullscreened process disappears from the list
+  // (e.g. removed from config, never came back after a restart).
   useEffect(() => {
     if (fullscreenName && !processes.some(p => p.name === fullscreenName)) {
       setFullscreenName(null);
     }
   }, [fullscreenName, processes]);
 ```
-
-(The auto-exit effect handles the edge case from the spec: if the fullscreened process disappears from the list, drop back to the grid.)
 
 Then find the JSX that renders the grid + Shared Services:
 
@@ -352,77 +361,66 @@ Then find the JSX that renders the grid + Shared Services:
       )}
 ```
 
-Wrap the conditional. Replace from `<DndContext ...>` through the closing `)}` after the services section with:
+Replace from `<DndContext ...>` through the closing `)}` after the services section with the version below. Note: the `DndContext`, `SortableContext`, and `.process-list` wrapper are **always** rendered — only the modifier class and the panel props change between modes. This is what preserves `Terminal` mounts (and therefore xterm scrollback and WebSocket connections) across fullscreen toggles. `SortableContext`'s `disabled` prop is set while fullscreen so the visible card doesn't try to drag against `display: none` siblings.
 
 ```jsx
-      {fullscreenName ? (
-        (() => {
-          const proc = processes.find(p => p.name === fullscreenName);
-          if (!proc) return null;
-          return (
-            <div className="process-list process-list--fullscreen">
-              <ProcessPanel
-                key={proc.name}
-                projectName={project.name}
-                process={proc}
-                allocations={project.allocations}
-                isFullscreen={true}
-                onToggleFullscreen={() => setFullscreenName(null)}
-              />
-            </div>
-          );
-        })()
-      ) : (
-        <>
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={order} strategy={rectSortingStrategy}>
-              <div className="process-list">
-                {orderedProcesses.map(proc => (
-                  <ProcessPanel
-                    key={proc.name}
-                    projectName={project.name}
-                    process={proc}
-                    allocations={project.allocations}
-                    isFullscreen={false}
-                    onToggleFullscreen={() => setFullscreenName(proc.name)}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext
+          items={order}
+          strategy={rectSortingStrategy}
+          disabled={!!fullscreenName}
+        >
+          <div className={`process-list${fullscreenName ? ' process-list--fullscreen' : ''}`}>
+            {orderedProcesses.map(proc => {
+              const isFs = proc.name === fullscreenName;
+              return (
+                <ProcessPanel
+                  key={proc.name}
+                  projectName={project.name}
+                  process={proc}
+                  allocations={project.allocations}
+                  isFullscreen={isFs}
+                  isHidden={!!fullscreenName && !isFs}
+                  onToggleFullscreen={() =>
+                    setFullscreenName(prev => prev === proc.name ? null : proc.name)
+                  }
+                />
+              );
+            })}
+          </div>
+        </SortableContext>
+      </DndContext>
 
-          {catalog.length > 0 && (
-            <div className="services-section">
-              <div className="section-label">Shared Services</div>
-              <div className="services-toggle-list">
-                {catalog.map(svc => {
-                  const isEnabled = !!enabled[svc];
-                  const isBusy = busy === svc;
-                  const envVar = enabled[svc]?.env;
-                  return (
-                    <div key={svc} className="services-toggle-row">
-                      <span className="services-toggle-name">{svc}</span>
-                      {isEnabled && envVar && (
-                        <span className="services-toggle-env">{envVar}</span>
-                      )}
-                      <button
-                        className={`btn btn--sm ${isEnabled ? 'btn--danger' : 'btn--outline'}`}
-                        onClick={() => toggle(svc)}
-                        disabled={isBusy}
-                      >
-                        {isBusy ? '…' : isEnabled ? 'disable' : 'enable'}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </>
+      {!fullscreenName && catalog.length > 0 && (
+        <div className="services-section">
+          <div className="section-label">Shared Services</div>
+          <div className="services-toggle-list">
+            {catalog.map(svc => {
+              const isEnabled = !!enabled[svc];
+              const isBusy = busy === svc;
+              const envVar = enabled[svc]?.env;
+              return (
+                <div key={svc} className="services-toggle-row">
+                  <span className="services-toggle-name">{svc}</span>
+                  {isEnabled && envVar && (
+                    <span className="services-toggle-env">{envVar}</span>
+                  )}
+                  <button
+                    className={`btn btn--sm ${isEnabled ? 'btn--danger' : 'btn--outline'}`}
+                    onClick={() => toggle(svc)}
+                    disabled={isBusy}
+                  >
+                    {isBusy ? '…' : isEnabled ? 'disable' : 'enable'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 ```
 
-- [ ] **Step 2: Wire `isFullscreen` + `onToggleFullscreen` into `ProcessPanel.jsx`**
+- [ ] **Step 2: Wire `isFullscreen`, `isHidden`, `onToggleFullscreen` into `ProcessPanel.jsx`**
 
 In `web/src/components/ProcessPanel.jsx`, change the function signature:
 
@@ -438,6 +436,7 @@ export default function ProcessPanel({
   process,
   allocations,
   isFullscreen = false,
+  isHidden = false,
   onToggleFullscreen,
 }) {
 ```
@@ -451,13 +450,16 @@ Add the toggle handler near the other handlers:
   };
 ```
 
-Update the wrapper `<div>` to apply the fullscreen class:
+Update the wrapper `<div>` to apply the fullscreen and hidden modifier classes:
 
 ```jsx
     <div
       ref={setNodeRef}
       style={style}
-      className={`process-panel${isFullscreen ? ' process-panel--fullscreen' : ''}`}
+      className={
+        `process-panel${isFullscreen ? ' process-panel--fullscreen' : ''}` +
+        `${isHidden ? ' process-panel--hidden' : ''}`
+      }
     >
 ```
 
@@ -500,27 +502,31 @@ Add `onDoubleClick` to the header div, plus `stopPropagation` on the drag handle
       </div>
 ```
 
-- [ ] **Step 3: Add `.process-panel--fullscreen` + `.process-list--fullscreen` CSS**
+- [ ] **Step 3: Add fullscreen / hidden CSS rules**
 
 In `web/src/styles/main.css`, immediately after the `.process-panel__body` rule, add:
 
 ```css
 .process-list--fullscreen { display: block; padding: 12px 16px; height: 100%; }
+.process-panel--hidden     { display: none; }
 .process-panel--fullscreen { height: 100%; display: flex; flex-direction: column; }
 .process-panel--fullscreen .process-panel__body { flex: 1; height: auto; }
 ```
 
-The `.process-list--fullscreen` rule overrides the grid so the single panel can stretch to fill the height. The `.process-panel--fullscreen` rules let the body grow instead of using the fixed 280 px.
+`.process-list--fullscreen` overrides the grid so the visible panel can stretch to fill the height. `.process-panel--hidden` removes the off-screen cards from layout (their xterm instances stay mounted and continue receiving log output — only the visual layer is hidden). `.process-panel--fullscreen` lets the visible card's body grow instead of using the fixed 280 px.
 
 - [ ] **Step 4: Verify fullscreen behavior**
 
 Reload the dashboard. In a project tab:
-- Double-click the header of any card (the bar with the name, not the terminal area). The grid disappears, that one card fills the body area below the project header, and its terminal expands to fit. The Shared Services section is gone.
+- Double-click the header of any card (the bar with the name, not the terminal area). That card expands to fill the area below the project header; the other cards visually disappear; its terminal refits. The Shared Services section is gone.
 - Click the `⤡` button in the maximized card's header. You're back at the grid; Shared Services is back.
-- Double-click again, then click the `⤢` glyph (now `⤡`) — same exit.
+- Double-click again, then click the toggle button (now `⤡`) — same exit.
 - Double-click a drag handle, a restart button, or a stop button — fullscreen should **not** toggle. The button's own action (or none, for the handle) is what happens.
 - Double-click *inside* the terminal area — fullscreen should **not** toggle. (The terminal will word-select instead, which is expected xterm behavior.)
-- While in fullscreen, click the project's `▶ up all` / `■ down all` buttons — they still work. Click another tab in the tab bar — the tab switch works; when you come back, the original tab is back in grid mode (fullscreen state is per-tab-component-instance; this is fine).
+- While in fullscreen, click the project's `▶ up all` / `■ down all` buttons — they still work.
+- **Scrollback preservation (critical):** Pick a card whose process has emitted log output recently (e.g. a Vite server with a few lines visible). Note a recognizable line near the top of its visible buffer. Fullscreen the card. Exit fullscreen. Fullscreen it again. Exit again. The same line should still be in its scrollback — you should *not* see the terminal "reset" or reconnect (no fresh `VITE vX.Y.Z ready in ...` banner appearing). If scrollback is wiped, the fix in Step 1 (always-mounted panels) isn't working — check that the JSX really keeps `DndContext`/`SortableContext`/`.process-list` rendered in both modes.
+- **Other panels keep streaming while one is fullscreen:** Pick a noisy process (e.g. a dev server that logs requests). Fullscreen a **different** card. Wait a moment, then exit fullscreen. The noisy card should have new log lines that arrived during the fullscreen window — the WebSocket stayed open.
+- Switch to a different open project tab. Switch back. The original tab should be in grid mode (the project-change reset effect cleared `fullscreenName`).
 
 - [ ] **Step 5: Commit**
 
