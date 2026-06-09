@@ -1,14 +1,8 @@
 const fs = require('fs');
 
-function parseEnvFile(filePath) {
-  let content;
-  try {
-    content = fs.readFileSync(filePath, 'utf8');
-  } catch (err) {
-    if (err.code === 'ENOENT') return null;
-    throw err;
-  }
+function parseEnvString(content) {
   const result = {};
+  if (!content) return result;
   for (const line of content.split('\n')) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
@@ -24,4 +18,15 @@ function parseEnvFile(filePath) {
   return result;
 }
 
-module.exports = { parseEnvFile };
+function parseEnvFile(filePath) {
+  let content;
+  try {
+    content = fs.readFileSync(filePath, 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return null;
+    throw err;
+  }
+  return parseEnvString(content);
+}
+
+module.exports = { parseEnvFile, parseEnvString };

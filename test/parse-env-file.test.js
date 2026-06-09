@@ -1,7 +1,7 @@
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
-const { parseEnvFile } = require('../src/parse-env-file');
+const { parseEnvFile, parseEnvString } = require('../src/parse-env-file');
 
 function tmpFile(content) {
   const p = path.join(os.tmpdir(), `forge-parseenv-${Date.now()}-${Math.random()}.env`);
@@ -46,4 +46,26 @@ test('preserves = characters inside values', () => {
 test('returns empty object for a file with only comments and blanks', () => {
   const file = tmpFile('# comment\n\n# another\n');
   expect(parseEnvFile(file)).toEqual({});
+});
+
+test('parseEnvString returns {} for empty input', () => {
+  expect(parseEnvString('')).toEqual({});
+});
+
+test('parseEnvString parses KEY=value lines', () => {
+  expect(parseEnvString('FOO=bar\nBAZ=qux\n')).toEqual({ FOO: 'bar', BAZ: 'qux' });
+});
+
+test('parseEnvString skips blank lines and # comments', () => {
+  const src = '# a comment\n\nKEY=value\n# another\nOTHER=thing\n';
+  expect(parseEnvString(src)).toEqual({ KEY: 'value', OTHER: 'thing' });
+});
+
+test('parseEnvString strips matching single or double quotes', () => {
+  const src = 'A="double"\nB=\'single\'\nC=plain\n';
+  expect(parseEnvString(src)).toEqual({ A: 'double', B: 'single', C: 'plain' });
+});
+
+test('parseEnvString preserves "=" in values', () => {
+  expect(parseEnvString('URL=https://example.com/?a=1&b=2\n')).toEqual({ URL: 'https://example.com/?a=1&b=2' });
 });
