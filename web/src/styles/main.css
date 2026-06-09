@@ -188,10 +188,13 @@ body {
   flex: 1;
   overflow: auto;
   padding: 12px 16px;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 8px;
+  align-content: start;
 }
+@media (min-width: 900px)  { .process-list { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1400px) { .process-list { grid-template-columns: repeat(3, 1fr); } }
 
 /* ── Process panel ──────────────────────────────────────── */
 .process-panel {
@@ -223,7 +226,7 @@ body {
 .process-panel__controls { display: flex; gap: 6px; margin-left: auto; }
 .process-panel__body {
   border-top: 1px solid var(--bg-overlay);
-  height: 220px;
+  height: 280px;
   background: var(--bg-base);
 }
 
