@@ -1,6 +1,7 @@
 // src/daemon/api/processes.js
 const { Router } = require('express');
 const { writeEnvFile } = require('../../cli/env-file');
+const { refreshProjectConfig } = require('../refresh-project');
 
 function createProcessRoutes({ registry, processManager, serviceManager, portAllocator }) {
   const router = Router({ mergeParams: true }); // makes :name from parent available
@@ -13,7 +14,7 @@ function createProcessRoutes({ registry, processManager, serviceManager, portAll
   });
 
   router.post('/up', async (req, res) => {
-    const project = registry.get(req.params.name);
+    const project = refreshProjectConfig(registry, req.params.name);
     if (!project) return res.status(404).json({ error: `"${req.params.name}" not found` });
     try {
       await serviceManager.ensureServicesRunning(project.config?.services ?? {});
@@ -64,14 +65,14 @@ function createProcessRoutes({ registry, processManager, serviceManager, portAll
   });
 
   router.post('/down', async (req, res) => {
-    const project = registry.get(req.params.name);
+    const project = refreshProjectConfig(registry, req.params.name);
     if (!project) return res.status(404).json({ error: `"${req.params.name}" not found` });
     await processManager.down(req.params.name, project.config?.processes);
     res.json({ ok: true, project: req.params.name });
   });
 
   router.post('/:processName/up', async (req, res) => {
-    const project = registry.get(req.params.name);
+    const project = refreshProjectConfig(registry, req.params.name);
     if (!project) return res.status(404).json({ error: `"${req.params.name}" not found` });
     try {
       await processManager.startProcess(
@@ -85,7 +86,7 @@ function createProcessRoutes({ registry, processManager, serviceManager, portAll
   });
 
   router.post('/:processName/down', (req, res) => {
-    const project = registry.get(req.params.name);
+    const project = refreshProjectConfig(registry, req.params.name);
     if (!project) return res.status(404).json({ error: `"${req.params.name}" not found` });
     processManager.stopProcess(req.params.name, req.params.processName);
     res.json({ ok: true, project: req.params.name, process: req.params.processName });
@@ -100,7 +101,7 @@ function createProcessRoutes({ registry, processManager, serviceManager, portAll
   });
 
   router.post('/:processName/restart', (req, res) => {
-    const project = registry.get(req.params.name);
+    const project = refreshProjectConfig(registry, req.params.name);
     if (!project) return res.status(404).json({ error: `"${req.params.name}" not found` });
     processManager.restart(
       req.params.name, req.params.processName,

@@ -49,6 +49,44 @@ function setup() {
   return { app, processManager, cleanup };
 }
 
+function setupWithDisk() {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-route-test-'));
+  fs.mkdirSync(path.join(projectDir, '.forge'));
+  const initialConfig = {
+    name: 'sai',
+    envFile: false,
+    processes: [{ name: 'api', command: 'npm start', cwd: '.', ports: [3000], portEnv: 'PORT' }],
+    services: {},
+  };
+  fs.writeFileSync(path.join(projectDir, '.forge', 'config.json'), JSON.stringify(initialConfig));
+
+  const tmpRegistry = path.join(os.tmpdir(), `forge-routes-test-${Date.now()}-${Math.random()}.json`);
+  const registry = createRegistry(tmpRegistry);
+  const portAllocator = createPortAllocator();
+  const serviceManager = createServiceManager([]);
+  const processManager = makeMockProcessManager();
+
+  registry.add('sai', {
+    path: projectDir,
+    config: initialConfig,
+    allocations: { ports: { api: 3000 }, services: {} },
+  });
+  const { app } = createServer({ registry, portAllocator, serviceManager, processManager });
+
+  const cleanup = () => {
+    fs.rmSync(projectDir, { recursive: true, force: true });
+    if (fs.existsSync(tmpRegistry)) fs.unlinkSync(tmpRegistry);
+  };
+  currentCleanup = cleanup;
+
+  function rewriteConfig(updater) {
+    const next = updater(JSON.parse(JSON.stringify(initialConfig)));
+    fs.writeFileSync(path.join(projectDir, '.forge', 'config.json'), JSON.stringify(next));
+  }
+
+  return { app, processManager, rewriteConfig, projectDir };
+}
+
 afterEach(() => {
   if (currentCleanup) {
     currentCleanup();
@@ -177,4 +215,70 @@ test('POST up returns 500 when processManager.up throws', async () => {
   expect(res.status).toBe(500);
   expect(res.body.error).toMatch(/Cycle detected/);
   fs.existsSync(tmpPath2) && fs.unlinkSync(tmpPath2);
+});
+
+test('POST /processes/up reads fresh config from disk before spawning', async () => {
+  const { app, processManager, rewriteConfig } = setupWithDisk();
+  rewriteConfig(c => {
+    c.processes[0].env = { NEW_VAR: 'fresh' };
+    return c;
+  });
+  const res = await request(app).post('/api/projects/sai/processes/up');
+  expect(res.status).toBe(200);
+  const procsPassed = processManager.up.mock.calls[0][1];
+  expect(procsPassed[0].env).toEqual({ NEW_VAR: 'fresh' });
+});
+
+test('POST /processes/down reads fresh config from disk', async () => {
+  const { app, processManager, rewriteConfig } = setupWithDisk();
+  rewriteConfig(c => {
+    c.processes.push({ name: 'worker', command: 'node worker.js', cwd: '.', ports: [] });
+    return c;
+  });
+  const res = await request(app).post('/api/projects/sai/processes/down');
+  expect(res.status).toBe(200);
+  const procsPassed = processManager.down.mock.calls[0][1];
+  expect(procsPassed.map(p => p.name)).toEqual(['api', 'worker']);
+});
+
+test('POST /processes/:name/up reads fresh config from disk', async () => {
+  const { app, processManager, rewriteConfig } = setupWithDisk();
+  rewriteConfig(c => {
+    c.processes[0].env = { FROM_DISK: 'yes' };
+    return c;
+  });
+  const res = await request(app).post('/api/projects/sai/processes/api/up');
+  expect(res.status).toBe(200);
+  const procsPassed = processManager.startProcess.mock.calls[0][2];
+  expect(procsPassed[0].env).toEqual({ FROM_DISK: 'yes' });
+});
+
+test('POST /processes/:name/restart reads fresh config from disk', async () => {
+  const { app, processManager, rewriteConfig } = setupWithDisk();
+  rewriteConfig(c => {
+    c.processes[0].env = { JOBS_SERVICE_URL: 'http://jobs:5000' };
+    return c;
+  });
+  const res = await request(app).post('/api/projects/sai/processes/api/restart');
+  expect(res.status).toBe(200);
+  const procsPassed = processManager.restart.mock.calls[0][2];
+  expect(procsPassed[0].env).toEqual({ JOBS_SERVICE_URL: 'http://jobs:5000' });
+});
+
+test('POST /processes/:name/down reads fresh config from disk', async () => {
+  const { app, processManager, rewriteConfig } = setupWithDisk();
+  rewriteConfig(c => c);
+  const res = await request(app).post('/api/projects/sai/processes/api/down');
+  expect(res.status).toBe(200);
+  expect(processManager.stopProcess).toHaveBeenCalledWith('sai', 'api');
+});
+
+test('routes fall back to registry config when config.json is missing', async () => {
+  const { app, processManager, projectDir } = setupWithDisk();
+  fs.unlinkSync(path.join(projectDir, '.forge', 'config.json'));
+  const res = await request(app).post('/api/projects/sai/processes/up');
+  expect(res.status).toBe(200);
+  const procsPassed = processManager.up.mock.calls[0][1];
+  expect(procsPassed[0].name).toBe('api');
+  expect(procsPassed[0].env).toBeUndefined();
 });
