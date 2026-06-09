@@ -1,21 +1,25 @@
 // src/cli/commands/uninstall.js
 const chalk = require('chalk');
+const { getServiceImpl } = require('../service');
 
 module.exports = function registerUninstall(program) {
   program
     .command('uninstall')
-    .description('Stop the daemon and remove the launchd agent')
+    .description('Stop the daemon and remove the user service')
     .action(async () => {
-      if (process.platform !== 'darwin') {
-        console.error(chalk.red('forge uninstall currently only supports macOS (launchd)'));
+      let service;
+      try {
+        service = getServiceImpl();
+      } catch (err) {
+        console.error(chalk.red(err.message));
         process.exit(1);
       }
-      const { uninstall, isInstalled } = require('../service/launchd');
-      if (!isInstalled()) {
+
+      if (!service.isInstalled()) {
         console.log(chalk.dim('Forge daemon is not installed.'));
         return;
       }
-      uninstall();
+      service.uninstall();
       console.log(chalk.green('✓ Forge daemon stopped and removed'));
       console.log(chalk.dim('  Registry and logs in ~/.forge/ are preserved.'));
     });
