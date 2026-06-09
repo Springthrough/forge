@@ -17,6 +17,16 @@ import { useProjectProcesses } from '../hooks/useProjectProcesses.js';
 import ProcessPanel from './ProcessPanel.jsx';
 
 function storageKey(name) { return `forge:panel-order:${name}`; }
+function viewModeKey(name) { return `forge:view-mode:${name}`; }
+
+function readViewMode(name) {
+  if (!name) return 'grid';
+  try {
+    return localStorage.getItem(viewModeKey(name)) === 'carousel' ? 'carousel' : 'grid';
+  } catch {
+    return 'grid';
+  }
+}
 
 function mergeOrder(stored, processes) {
   const names = processes.map(p => p.name);
@@ -60,7 +70,7 @@ export default function ProjectTab({ project, onProjectUpdate }) {
   const processes    = useProjectProcesses(project?.name);
   const [order, setOrder] = useState([]);
   const [fullscreenName, setFullscreenName] = useState(null);
-  const [viewMode, setViewMode] = useState('grid');
+  const [viewMode, setViewMode] = useState(() => readViewMode(project?.name));
   const carouselRef = useRef(null);
   const prevViewModeRef = useRef('grid');
   const [centeredName, setCenteredName] = useState(null);
@@ -71,8 +81,13 @@ export default function ProjectTab({ project, onProjectUpdate }) {
   // state would otherwise leak across projects.
   useEffect(() => {
     setFullscreenName(null);
-    setViewMode('grid');
+    setViewMode(readViewMode(project?.name));
   }, [project?.name]);
+
+  useEffect(() => {
+    if (!project?.name) return;
+    try { localStorage.setItem(viewModeKey(project.name), viewMode); } catch {}
+  }, [project?.name, viewMode]);
 
   // Spec: entering carousel from a non-carousel state resets to the first card
   // (`scrollLeft = 0`). Fullscreen ↔ carousel transitions preserve scrollLeft —
