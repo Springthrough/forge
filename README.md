@@ -9,14 +9,14 @@ Working across multiple repos means juggling terminals, remembering which projec
 - **Live dashboard** at `localhost:2525` — terminal output for every process, start/stop/restart controls, no extra terminals
 - **Full PTY processes** — colors, readline, and interactive tools work as expected
 - **Multi-repo support** — `forge extend` merges another project's processes and services into your config
-- **Survives reboots** — runs as a launchd agent, always ready after login
+- **Survives reboots** — runs as a launchd agent (macOS) or systemd user service (Linux), always ready after login
 
 ## Requirements
 
-- macOS (Linux support planned)
+- macOS or Linux (Linux requires a systemd user session; see Linux install below)
 - Node.js ≥ 20
-- Docker Desktop — required for shared services (Mongo, Redis)
-- Xcode Command Line Tools (`xcode-select --install`) — required by `node-pty` for terminal emulation
+- Docker Desktop (macOS) or Docker Engine (Linux) — required for shared services (Mongo, Redis)
+- A C/C++ toolchain — required by `node-pty` for terminal emulation. macOS: `xcode-select --install`. Debian/Ubuntu: `sudo apt install build-essential`.
 
 ## Install
 
@@ -25,7 +25,23 @@ npm install -g @brutalsystems/forge
 forge install
 ```
 
-`forge install` registers the daemon as a launchd agent so it starts automatically on login and listens on port 2525.
+`forge install` registers the daemon to start automatically on login and listen on port 2525. The mechanism differs by OS:
+
+### macOS
+
+The daemon is registered as a launchd agent at `~/Library/LaunchAgents/com.forge.daemon.plist`.
+
+### Linux (systemd)
+
+The daemon is registered as a systemd **user** service at `~/.config/systemd/user/forge.service`. To keep the daemon running after you log out (recommended for headless boxes):
+
+```bash
+loginctl enable-linger $USER
+```
+
+Without `enable-linger`, the systemd user manager — and therefore the forge daemon — terminates when your last session ends.
+
+Logs go to `~/.forge/daemon.log` and `~/.forge/daemon.error.log`. systemd start/stop events are viewable via `journalctl --user -u forge.service` (daemon stdout itself is in the log files, not the journal).
 
 ## Quick start
 
@@ -61,7 +77,7 @@ forge open
 
 ### The daemon
 
-Forge runs a persistent background daemon registered as a launchd agent (`~/Library/LaunchAgents/com.brutalsystems.forge.plist`). The daemon:
+Forge runs a persistent background daemon registered as a launchd agent on macOS (`~/Library/LaunchAgents/com.forge.daemon.plist`) or a systemd user service on Linux (`~/.config/systemd/user/forge.service`). The daemon:
 
 - Listens on port 2525 for CLI commands and dashboard connections
 - Manages process lifecycles — spawning PTY processes, capturing output, restarting on failure
@@ -385,8 +401,8 @@ Both web-app and any other consumer each get their own port and their own `REALT
 
 | Command | Description |
 |---|---|
-| `forge install` | Register daemon as launchd agent and start it |
-| `forge uninstall` | Stop daemon and remove launchd agent |
+| `forge install` | Register daemon as a user service (launchd on macOS, systemd on Linux) and start it |
+| `forge uninstall` | Stop daemon and remove the user service |
 | `forge init` | Scaffold `.forge/config.json` in the current directory (auto-detects name from `package.json`) |
 | `forge add` | Register the current project: allocate ports, provision services, write `.env.forge` |
 | `forge reload` | Re-read `.forge/config.json` and apply changes to the daemon. Run after any config edit. (`forge sync` is a backwards-compatible alias.) |
@@ -442,8 +458,15 @@ cat ~/.forge/daemon.error.log
 ```
 
 **Check daemon status**
+
+macOS:
 ```bash
 launchctl list | grep forge
+```
+
+Linux:
+```bash
+systemctl --user status forge.service
 ```
 
 **node-pty build error**
