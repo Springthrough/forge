@@ -325,6 +325,7 @@ body {
   align-items: center;
   gap: 6px;
 }
+.services-section__header .section-label { margin-bottom: 0; }
 .service-chip {
   display: inline-flex;
   align-items: center;
