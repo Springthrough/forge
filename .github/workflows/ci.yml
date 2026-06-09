@@ -21,6 +21,15 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - run: npm ci
+      # Skip the `prepare` script (which does `npm install --prefix web && npm run build:web`)
+      # so each sub-step's output is visible. Then run them explicitly below.
+      - run: npm ci --ignore-scripts
+
+      - run: node scripts/fix-node-pty-perms.js
+        if: matrix.os != 'windows-latest'
+
+      - run: npm install --prefix web
+
+      - run: npm run build:web
 
       - run: npm test
