@@ -59,7 +59,23 @@ function useServicesSection(project) {
 export default function ProjectTab({ project, onProjectUpdate }) {
   const processes    = useProjectProcesses(project?.name);
   const [order, setOrder] = useState([]);
+  const [fullscreenName, setFullscreenName] = useState(null);
   const { catalog, enabled, busy, toggle } = useServicesSection(project);
+
+  // Reset fullscreen when the user switches to a different project tab.
+  // App.jsx reuses the same ProjectTab instance across project changes, so
+  // state would otherwise leak across projects.
+  useEffect(() => {
+    setFullscreenName(null);
+  }, [project?.name]);
+
+  // Auto-exit fullscreen if the fullscreened process disappears from the list
+  // (e.g. removed from config, never came back after a restart).
+  useEffect(() => {
+    if (fullscreenName && !processes.some(p => p.name === fullscreenName)) {
+      setFullscreenName(null);
+    }
+  }, [fullscreenName, processes]);
 
   useEffect(() => {
     if (!project || processes.length === 0) return;
@@ -110,21 +126,33 @@ export default function ProjectTab({ project, onProjectUpdate }) {
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={order} strategy={rectSortingStrategy}>
-          <div className="process-list">
-            {orderedProcesses.map(proc => (
-              <ProcessPanel
-                key={proc.name}
-                projectName={project.name}
-                process={proc}
-                allocations={project.allocations}
-              />
-            ))}
+        <SortableContext
+          items={order}
+          strategy={rectSortingStrategy}
+          disabled={!!fullscreenName}
+        >
+          <div className={`process-list${fullscreenName ? ' process-list--fullscreen' : ''}`}>
+            {orderedProcesses.map(proc => {
+              const isFs = proc.name === fullscreenName;
+              return (
+                <ProcessPanel
+                  key={proc.name}
+                  projectName={project.name}
+                  process={proc}
+                  allocations={project.allocations}
+                  isFullscreen={isFs}
+                  isHidden={!!fullscreenName && !isFs}
+                  onToggleFullscreen={() =>
+                    setFullscreenName(prev => prev === proc.name ? null : proc.name)
+                  }
+                />
+              );
+            })}
           </div>
         </SortableContext>
       </DndContext>
 
-      {catalog.length > 0 && (
+      {!fullscreenName && catalog.length > 0 && (
         <div className="services-section">
           <div className="section-label">Shared Services</div>
           <div className="services-toggle-list">

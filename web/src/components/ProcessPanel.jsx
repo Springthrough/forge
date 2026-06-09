@@ -8,7 +8,14 @@ function formatUptime(s) {
   return `${Math.floor(s / 3600)}h${Math.floor((s % 3600) / 60)}m`;
 }
 
-export default function ProcessPanel({ projectName, process, allocations }) {
+export default function ProcessPanel({
+  projectName,
+  process,
+  allocations,
+  isFullscreen = false,
+  isHidden = false,
+  onToggleFullscreen,
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: process.name });
 
@@ -38,14 +45,27 @@ export default function ProcessPanel({ projectName, process, allocations }) {
     fetch(`${apiBase}/up`, { method: 'POST' });
   };
 
+  const handleToggleFullscreen = (e) => {
+    e.stopPropagation();
+    onToggleFullscreen?.();
+  };
+
   return (
-    <div ref={setNodeRef} style={style} className="process-panel">
-      <div className="process-panel__header">
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={
+        `process-panel${isFullscreen ? ' process-panel--fullscreen' : ''}` +
+        `${isHidden ? ' process-panel--hidden' : ''}`
+      }
+    >
+      <div className="process-panel__header" onDoubleClick={handleToggleFullscreen}>
         <span
           className="drag-handle"
           {...attributes}
           {...listeners}
           onClick={e => e.stopPropagation()}
+          onDoubleClick={e => e.stopPropagation()}
         >⠿</span>
         <span className="status-dot" style={{ color: dotColor }}>●</span>
         <span className="process-panel__name">{process.name}</span>
@@ -55,7 +75,7 @@ export default function ProcessPanel({ projectName, process, allocations }) {
             ? `${port ? ' · ' : ''}up ${formatUptime(process.uptime)}`
             : ''}
         </span>
-        <div className="process-panel__controls">
+        <div className="process-panel__controls" onDoubleClick={e => e.stopPropagation()}>
           {process.status === 'running' ? (
             <>
               <button className="btn btn--sm" onClick={handleRestart}>restart</button>
@@ -64,6 +84,13 @@ export default function ProcessPanel({ projectName, process, allocations }) {
           ) : (
             <button className="btn btn--sm btn--success" onClick={handleStart}>start</button>
           )}
+          <button
+            className="btn btn--sm"
+            onClick={handleToggleFullscreen}
+            title={isFullscreen ? 'exit fullscreen (Esc)' : 'fullscreen'}
+          >
+            {isFullscreen ? '⤡' : '⤢'}
+          </button>
         </div>
       </div>
       <div className="process-panel__body">
