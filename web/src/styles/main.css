@@ -238,7 +238,6 @@ body {
   overflow-x: scroll;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
   gap: 16px;
   padding: 12px 15vw;
   scrollbar-width: none;
