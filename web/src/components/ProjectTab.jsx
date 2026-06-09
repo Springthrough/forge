@@ -63,6 +63,7 @@ export default function ProjectTab({ project, onProjectUpdate }) {
   const [viewMode, setViewMode] = useState('grid');
   const carouselRef = useRef(null);
   const prevViewModeRef = useRef('grid');
+  const [centeredName, setCenteredName] = useState(null);
   const { catalog, enabled, busy, toggle } = useServicesSection(project);
 
   // Reset fullscreen when the user switches to a different project tab.
@@ -103,6 +104,32 @@ export default function ProjectTab({ project, onProjectUpdate }) {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [fullscreenName]);
 
+  // Track which card is closest to the carousel center. useLayoutEffect (not
+  // useEffect) so the very first paint after entering carousel already has
+  // `centeredName` set — avoids a one-frame flash where every card looks
+  // centered (no peek class applied yet).
+  useLayoutEffect(() => {
+    if (viewMode !== 'carousel' || fullscreenName) {
+      setCenteredName(null);
+      return;
+    }
+    const el = carouselRef.current;
+    if (!el) return;
+    function update() {
+      const containerCenter = el.scrollLeft + el.clientWidth / 2;
+      let best = null, bestDist = Infinity;
+      for (const child of el.children) {
+        const c = child.offsetLeft + child.offsetWidth / 2;
+        const d = Math.abs(c - containerCenter);
+        if (d < bestDist) { bestDist = d; best = child; }
+      }
+      if (best) setCenteredName(best.dataset.processName ?? null);
+    }
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    return () => el.removeEventListener('scroll', update);
+  }, [viewMode, fullscreenName, processes.length]);
+
   useEffect(() => {
     if (!project || processes.length === 0) return;
     try {
@@ -131,6 +158,13 @@ export default function ProjectTab({ project, onProjectUpdate }) {
     fetch(`/api/projects/${encodeURIComponent(project.name)}/processes/up`, { method: 'POST' });
   const handleDownAll = () =>
     fetch(`/api/projects/${encodeURIComponent(project.name)}/processes/down`, { method: 'POST' });
+
+  const centerCard = useCallback((name) => {
+    const el = carouselRef.current;
+    if (!el) return;
+    const target = el.querySelector(`[data-process-name="${CSS.escape(name)}"]`);
+    if (target) target.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, []);
 
   if (!project) return <div className="empty-state">Project not found.</div>;
 
@@ -174,6 +208,8 @@ export default function ProjectTab({ project, onProjectUpdate }) {
           >
             {orderedProcesses.map(proc => {
               const isFs = proc.name === fullscreenName;
+              const isCarousel = viewMode === 'carousel' && !fullscreenName;
+              const isCentered = isCarousel && proc.name === centeredName;
               return (
                 <ProcessPanel
                   key={proc.name}
@@ -182,9 +218,12 @@ export default function ProjectTab({ project, onProjectUpdate }) {
                   allocations={project.allocations}
                   isFullscreen={isFs}
                   isHidden={!!fullscreenName && !isFs}
+                  isCarousel={isCarousel}
+                  isCentered={isCentered}
                   onToggleFullscreen={() =>
                     setFullscreenName(prev => prev === proc.name ? null : proc.name)
                   }
+                  onCardClick={isCarousel && !isCentered ? () => centerCard(proc.name) : undefined}
                 />
               );
             })}

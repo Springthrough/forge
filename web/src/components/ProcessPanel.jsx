@@ -14,7 +14,10 @@ export default function ProcessPanel({
   allocations,
   isFullscreen = false,
   isHidden = false,
+  isCarousel = false,
+  isCentered = false,
   onToggleFullscreen,
+  onCardClick,
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: process.name });
@@ -55,9 +58,11 @@ export default function ProcessPanel({
       ref={setNodeRef}
       data-process-name={process.name}
       style={style}
+      onClick={onCardClick}
       className={
         `process-panel${isFullscreen ? ' process-panel--fullscreen' : ''}` +
-        `${isHidden ? ' process-panel--hidden' : ''}`
+        `${isHidden ? ' process-panel--hidden' : ''}` +
+        `${isCarousel && !isCentered ? ' process-panel--peek' : ''}`
       }
     >
       <div className="process-panel__header" onDoubleClick={handleToggleFullscreen}>
