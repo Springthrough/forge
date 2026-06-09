@@ -232,6 +232,33 @@ body {
 .process-panel--hidden     { display: none; }
 .process-panel--fullscreen { height: 100%; display: flex; flex-direction: column; }
 .process-panel--fullscreen .process-panel__body { flex: 1; height: auto; }
+.process-list--carousel {
+  display: flex;
+  flex-direction: row;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  gap: 16px;
+  padding: 12px 15vw;
+  scrollbar-width: none;
+}
+.process-list--carousel::-webkit-scrollbar { display: none; }
+.process-list--carousel .process-panel {
+  flex: 0 0 70vw;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.process-list--carousel .process-panel__body {
+  flex: 1;
+  height: auto;
+}
+.process-list--carousel .drag-handle { display: none; }
+.process-panel--peek > * { pointer-events: none; }
+.process-panel--peek    { pointer-events: auto; cursor: pointer; opacity: 0.7; }
 
 /* ── Terminal ────────────────────────────────────────────── */
 .terminal-wrap { width: 100%; height: 100%; padding: 4px; }
