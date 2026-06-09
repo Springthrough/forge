@@ -10,7 +10,7 @@ import {
 import {
   SortableContext,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
+  rectSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable';
 import { useProjectProcesses } from '../hooks/useProjectProcesses.js';
@@ -110,7 +110,7 @@ export default function ProjectTab({ project, onProjectUpdate }) {
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={order} strategy={verticalListSortingStrategy}>
+        <SortableContext items={order} strategy={rectSortingStrategy}>
           <div className="process-list">
             {orderedProcesses.map(proc => (
               <ProcessPanel
