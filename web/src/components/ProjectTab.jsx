@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -60,6 +60,9 @@ export default function ProjectTab({ project, onProjectUpdate }) {
   const processes    = useProjectProcesses(project?.name);
   const [order, setOrder] = useState([]);
   const [fullscreenName, setFullscreenName] = useState(null);
+  const [viewMode, setViewMode] = useState('grid');
+  const carouselRef = useRef(null);
+  const prevViewModeRef = useRef('grid');
   const { catalog, enabled, busy, toggle } = useServicesSection(project);
 
   // Reset fullscreen when the user switches to a different project tab.
@@ -67,7 +70,21 @@ export default function ProjectTab({ project, onProjectUpdate }) {
   // state would otherwise leak across projects.
   useEffect(() => {
     setFullscreenName(null);
+    setViewMode('grid');
   }, [project?.name]);
+
+  // Spec: entering carousel from a non-carousel state resets to the first card
+  // (`scrollLeft = 0`). Fullscreen ↔ carousel transitions preserve scrollLeft —
+  // we guard with `prevViewModeRef.current !== 'carousel'` so this only fires
+  // on grid → carousel, not on fullscreen → carousel (where viewMode never
+  // changed and the previous value is already 'carousel').
+  useEffect(() => {
+    if (viewMode === 'carousel' && prevViewModeRef.current !== 'carousel' && !fullscreenName) {
+      const el = carouselRef.current;
+      if (el) el.scrollLeft = 0;
+    }
+    prevViewModeRef.current = viewMode;
+  }, [viewMode, fullscreenName]);
 
   // Auto-exit fullscreen if the fullscreened process disappears from the list
   // (e.g. removed from config, never came back after a restart).
@@ -129,6 +146,13 @@ export default function ProjectTab({ project, onProjectUpdate }) {
           <span className="project-tab__path">{project.path}</span>
         </div>
         <div className="project-tab__actions">
+          <button
+            className="btn btn--sm"
+            onClick={() => setViewMode(m => m === 'carousel' ? 'grid' : 'carousel')}
+            title={viewMode === 'carousel' ? 'switch to grid view' : 'switch to carousel view'}
+          >
+            {viewMode === 'carousel' ? '⊞ grid' : '⏵⏴ carousel'}
+          </button>
           <button className="btn btn--success btn--sm" onClick={handleUpAll}>▶ up all</button>
           <button className="btn btn--danger btn--sm" onClick={handleDownAll}>■ down all</button>
         </div>
@@ -138,9 +162,16 @@ export default function ProjectTab({ project, onProjectUpdate }) {
         <SortableContext
           items={order}
           strategy={rectSortingStrategy}
-          disabled={!!fullscreenName}
+          disabled={viewMode === 'carousel' || !!fullscreenName}
         >
-          <div className={`process-list${fullscreenName ? ' process-list--fullscreen' : ''}`}>
+          <div
+            ref={carouselRef}
+            className={
+              fullscreenName        ? 'process-list process-list--fullscreen'
+              : viewMode === 'carousel' ? 'process-list process-list--carousel'
+              : 'process-list'
+            }
+          >
             {orderedProcesses.map(proc => {
               const isFs = proc.name === fullscreenName;
               return (

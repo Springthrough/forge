@@ -53,6 +53,7 @@ export default function ProcessPanel({
   return (
     <div
       ref={setNodeRef}
+      data-process-name={process.name}
       style={style}
       className={
         `process-panel${isFullscreen ? ' process-panel--fullscreen' : ''}` +
