@@ -100,7 +100,10 @@ function buildExtendedConfig(currentConfig, sourceConfig, sourceDir, currentDir)
     .filter(proc => !existingNames.has(`${sourceName}:${proc.name}`))
     .map(proc => {
       const absProcessDir = path.resolve(sourceDir, proc.cwd ?? '.');
-      const relCwd = path.relative(currentDir, absProcessDir);
+      // path.relative returns platform-specific separators (..\sai on Windows).
+      // Normalize to forward slashes so the written config.json is portable
+      // across platforms — both POSIX and Windows path.resolve accept /.
+      const relCwd = path.relative(currentDir, absProcessDir).split(path.sep).join('/');
       return { ...proc, name: `${sourceName}:${proc.name}`, cwd: relCwd === '' ? '.' : relCwd };
     });
 

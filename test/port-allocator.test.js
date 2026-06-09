@@ -74,8 +74,10 @@ test('releaseAll frees all ports for a project', async () => {
 
 test('reserve throws if no candidates are available', async () => {
   const alloc = createPortAllocator();
-  // Port 1 is always unavailable (privileged)
-  await expect(alloc.reserve('sai', 'api', [1])).rejects.toThrow('No available port');
+  // Empty candidate list — universally unbindable. (Port 1, used previously,
+  // is NOT guaranteed-unavailable on Windows where non-root users can bind
+  // privileged ports.)
+  await expect(alloc.reserve('sai', 'api', [])).rejects.toThrow('No available port');
 });
 
 test('getAll returns all current reservations', async () => {
