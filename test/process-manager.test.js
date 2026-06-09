@@ -625,6 +625,33 @@ test('startOne behaves unchanged when envFileCommand is absent', async () => {
   expect(spawnCalls).toHaveLength(2);
 });
 
+const { getDefaultShell } = require('../src/daemon/process-manager');
+
+describe('getDefaultShell', () => {
+  const savedShell = process.env.SHELL;
+
+  afterEach(() => {
+    if (savedShell === undefined) delete process.env.SHELL;
+    else process.env.SHELL = savedShell;
+  });
+
+  test('returns process.env.SHELL when it is set', () => {
+    process.env.SHELL = '/usr/bin/fish';
+    expect(getDefaultShell('linux')).toBe('/usr/bin/fish');
+    expect(getDefaultShell('darwin')).toBe('/usr/bin/fish');
+  });
+
+  test('falls back to /bin/zsh on darwin when SHELL is unset', () => {
+    delete process.env.SHELL;
+    expect(getDefaultShell('darwin')).toBe('/bin/zsh');
+  });
+
+  test('falls back to /bin/sh on linux when SHELL is unset', () => {
+    delete process.env.SHELL;
+    expect(getDefaultShell('linux')).toBe('/bin/sh');
+  });
+});
+
 test('startOne does not spawn an orphan PTY if down() races a slow envFileCommand', async () => {
   // Regression for the race: user issues `forge down` while a long-running
   // envCommandRunner is still resolving. killOne removes the record from the

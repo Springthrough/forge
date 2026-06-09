@@ -8,6 +8,12 @@ const { buildStartOrder } = require('./dependency-resolver');
 
 const MAX_BUFFER = 200;
 
+function getDefaultShell(platform = process.platform) {
+  if (process.env.SHELL) return process.env.SHELL;
+  if (platform === 'darwin') return '/bin/zsh';
+  return '/bin/sh';
+}
+
 function defaultPollPort(port, timeoutMs) {
   return new Promise(resolve => {
     const deadline = Date.now() + timeoutMs;
@@ -88,7 +94,7 @@ function defaultWaitForExit(ptyProc, timeoutMs) {
 function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit, envCommandRunner = runEnvCommand } = {}) {
   const spawnFn = ptySpawn ?? function(command, env, cwd) {
     const pty = require('node-pty'); // lazy — not loaded in tests that inject ptySpawn
-    const shell = process.env.SHELL || '/bin/zsh';
+    const shell = getDefaultShell();
     return pty.spawn(shell, ['-c', command], {
       name: 'xterm-256color', cols: 120, rows: 30,
       cwd, env: { ...process.env, TERM: 'xterm-256color', ...env },
@@ -388,4 +394,4 @@ function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit, envCo
   };
 }
 
-module.exports = { createProcessManager };
+module.exports = { createProcessManager, getDefaultShell };
