@@ -378,6 +378,41 @@ test('envFileCommand failure prevents spawn and records error in buffer', async 
   expect(buf).toMatch(/envFileCommand failed for "api"/);
   expect(buf).toMatch(/exit 1/);
   expect(buf).toMatch(/bad metadata/);
+  // Multi-line errors must use \r\n so xterm renders each line at column 0.
+  expect(buf).toMatch(/exit 1\r\nstderr/);
+});
+
+test('non-array envFileCommand fails through helper validation (not silently skipped)', async () => {
+  // Regression guard: a string-typed envFileCommand (user config error) MUST
+  // surface as a clear failure, not silently spawn without secrets.
+  const stringPm = createProcessManager({
+    ptySpawn: (command, env, cwd) => {
+      const mock = makeMockPty();
+      spawnCalls.push({ command, env, cwd, mock });
+      return mock;
+    },
+    envCommandRunner: async (argv) => {
+      // Real helper would return this; stub it here so the test doesn't depend on it.
+      if (!Array.isArray(argv) || argv.length === 0) {
+        return { ok: false, error: 'envFileCommand must be a non-empty array' };
+      }
+      return { ok: true, env: {} };
+    },
+  });
+  const configs = [{
+    name: 'api',
+    command: 'npm start',
+    cwd: '.',
+    ports: [3000],
+    portEnv: 'PORT',
+    envFileCommand: 'sops -d secrets.enc',   // wrong: string instead of array
+  }];
+  await stringPm.up('sai', configs, allocations, '/projects/sai');
+
+  expect(spawnCalls).toHaveLength(0);
+  expect(stringPm.isRunning('sai', 'api')).toBe(false);
+  const buf = stringPm.getBuffer('sai', 'api').join('');
+  expect(buf).toMatch(/envFileCommand must be a non-empty array/);
 });
 
 test('startOne behaves unchanged when envFileCommand is absent', async () => {
@@ -394,7 +429,7 @@ test('startOne behaves unchanged when envFileCommand is absent', async () => {
 cd /Users/mikewilliams/Source/brutalsystems/forge && npx jest test/process-manager.test.js
 ```
 
-Expected: the 2 first new tests fail (the `unchanged` one passes — sanity check that existing path still works). Existing tests still pass.
+Expected: three of the four new tests fail — `merges envFileCommand output`, `failure prevents spawn`, and `non-array envFileCommand fails through helper validation`. The `behaves unchanged when absent` sanity test passes. Existing tests still pass.
 
 - [ ] **Step 3: Wire `envCommandRunner` into `createProcessManager` and `startOne`**
 
@@ -473,12 +508,16 @@ with:
     const record = { status: 'running', startedAt: Date.now(), buffer: [], pid: null, ptyProcess: null };
     processes.set(k, record);
 
-    if (Array.isArray(proc.envFileCommand) && proc.envFileCommand.length > 0) {
+    if (proc.envFileCommand) {
       const result = await envCommandRunner(proc.envFileCommand, projectPath);
       if (!result.ok) {
         record.status = 'crashed';
         record.startedAt = null;
-        const msg = `\r\n\x1b[31m[forge] envFileCommand failed for "${proc.name}": ${result.error}\x1b[0m\r\n`;
+        // Normalize any embedded newlines to \r\n before writing to the
+        // xterm buffer — xterm treats \n as a line-feed only (no column reset),
+        // which would render multi-line errors with a jagged left margin.
+        const errorText = String(result.error).replace(/\n/g, '\r\n');
+        const msg = `\r\n\x1b[31m[forge] envFileCommand failed for "${proc.name}": ${errorText}\x1b[0m\r\n`;
         appendToBuffer(record.buffer, msg);
         emit(k, { type: 'status', status: 'crashed' });
         emit(k, { type: 'output', data: msg });
@@ -493,7 +532,8 @@ with:
     } catch (err) {
       record.status = 'crashed';
       record.startedAt = null;
-      const msg = `\r\n\x1b[31mFailed to start: ${err.message}\x1b[0m\r\n`;
+      const errText = String(err.message ?? err).replace(/\n/g, '\r\n');
+      const msg = `\r\n\x1b[31mFailed to start: ${errText}\x1b[0m\r\n`;
       appendToBuffer(record.buffer, msg);
       emit(k, { type: 'status', status: 'crashed' });
       emit(k, { type: 'output', data: msg });
@@ -504,7 +544,8 @@ with:
 Key points:
 - The record is created BEFORE the `envFileCommand` call so the failure path can write to `record.buffer`.
 - `await envCommandRunner(proc.envFileCommand, projectPath)` — `projectPath` is the working directory (spec says encrypted file paths are typically repo-relative).
-- On failure: red ANSI error to the buffer + status emit + early return (no spawn).
+- The guard is `if (proc.envFileCommand)` (truthy), not `Array.isArray && length > 0`. That way a misconfigured non-array value (e.g. the user wrote `"envFileCommand": "sops -d secrets.enc"` as a string) flows through to the helper, which already rejects it with `'envFileCommand must be a non-empty array'`, and the user sees a clear structured error in the dashboard card. Silently spawning without decryption (the old guard's failure mode) is the worst possible outcome — the user thinks their secrets are loaded but they're not.
+- Both failure paths (`envFileCommand` and `spawnFn`) normalize `\n` → `\r\n` before writing to the buffer so multi-line errors render cleanly in xterm.
 - On success: merge into env with last-wins (`Object.assign(env, result.env)`).
 - The default timeout (30 s) is whatever `runEnvCommand`'s default is — we don't override here.
 
@@ -542,7 +583,7 @@ Do NOT `git add -A` / `git add .`. Do NOT amend or push.
 cd /Users/mikewilliams/Source/brutalsystems/forge && npm test 2>&1 | tail -8
 ```
 
-Expected: all tests pass. Total = baseline + 15 (5 from Task 1 + 7 from Task 2 + 3 from Task 3).
+Expected: all tests pass. Total = baseline + 16 (5 from Task 1 + 7 from Task 2 + 4 from Task 3).
 
 - [ ] **Step 2: Manual smoke test (user)**
 
