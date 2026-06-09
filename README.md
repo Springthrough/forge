@@ -9,14 +9,17 @@ Working across multiple repos means juggling terminals, remembering which projec
 - **Live dashboard** at `localhost:2525` — terminal output for every process, start/stop/restart controls, no extra terminals
 - **Full PTY processes** — colors, readline, and interactive tools work as expected
 - **Multi-repo support** — `forge extend` merges another project's processes and services into your config
-- **Survives reboots** — runs as a launchd agent (macOS) or systemd user service (Linux), always ready after login
+- **Survives reboots** — runs as a launchd agent (macOS), systemd user service (Linux), or Task Scheduler logon task (Windows) — always ready after login
 
 ## Requirements
 
-- macOS or Linux (Linux requires a systemd user session; see Linux install below)
+- macOS, Linux (systemd user session), or Windows 10+ (PowerShell or cmd)
 - Node.js ≥ 20
-- Docker Desktop (macOS) or Docker Engine (Linux) — required for shared services (Mongo, Redis)
-- A C/C++ toolchain — required by `node-pty` for terminal emulation. macOS: `xcode-select --install`. Debian/Ubuntu: `sudo apt install build-essential`.
+- Docker Desktop (macOS, Windows) or Docker Engine (Linux) — required for shared services (Mongo, Redis)
+- A C/C++ toolchain — required by `node-pty` for terminal emulation.
+  - macOS: `xcode-select --install`
+  - Debian/Ubuntu: `sudo apt install build-essential`
+  - Windows: Visual Studio Build Tools (installed automatically via `npm install --global windows-build-tools` or already present if you have Visual Studio)
 
 ## Install
 
@@ -42,6 +45,18 @@ loginctl enable-linger $USER
 Without `enable-linger`, the systemd user manager — and therefore the forge daemon — terminates when your last session ends.
 
 Logs go to `~/.forge/daemon.log` and `~/.forge/daemon.error.log`. systemd start/stop events are viewable via `journalctl --user -u forge.service` (daemon stdout itself is in the log files, not the journal).
+
+### Windows
+
+The daemon is registered as a Task Scheduler task named `\Forge\ForgeDaemon` that runs at user logon. The XML config lives at `%LOCALAPPDATA%\Forge\forge-task.xml`. Logs go to `%USERPROFILE%\.forge\daemon.log` and `%USERPROFILE%\.forge\daemon.error.log`.
+
+To inspect the task: open `taskschd.msc` and navigate to Task Scheduler Library → Forge, or run:
+
+```cmd
+schtasks /Query /TN \Forge\ForgeDaemon /V /FO LIST
+```
+
+Acknowledged limitation: the task triggers at logon and stops when you log out. There's no Windows analog to systemd's `enable-linger`. Headless servers can configure the task to "Run whether user is logged on or not" via Task Scheduler GUI; doing so requires storing your Windows password in the task config.
 
 ## Quick start
 
@@ -77,7 +92,7 @@ forge open
 
 ### The daemon
 
-Forge runs a persistent background daemon registered as a launchd agent on macOS (`~/Library/LaunchAgents/com.forge.daemon.plist`) or a systemd user service on Linux (`~/.config/systemd/user/forge.service`). The daemon:
+Forge runs a persistent background daemon registered as a launchd agent on macOS (`~/Library/LaunchAgents/com.forge.daemon.plist`), a systemd user service on Linux (`~/.config/systemd/user/forge.service`), or a Task Scheduler logon task on Windows (`\Forge\ForgeDaemon`). The daemon:
 
 - Listens on port 2525 for CLI commands and dashboard connections
 - Manages process lifecycles — spawning PTY processes, capturing output, restarting on failure
@@ -401,8 +416,8 @@ Both web-app and any other consumer each get their own port and their own `REALT
 
 | Command | Description |
 |---|---|
-| `forge install` | Register daemon as a user service (launchd on macOS, systemd on Linux) and start it |
-| `forge uninstall` | Stop daemon and remove the user service |
+| `forge install` | Register daemon as a user service (launchd on macOS, systemd on Linux, Task Scheduler on Windows) and start it |
+| `forge uninstall` | Stop daemon and remove the user service / task |
 | `forge init` | Scaffold `.forge/config.json` in the current directory (auto-detects name from `package.json`) |
 | `forge add` | Register the current project: allocate ports, provision services, write `.env.forge` |
 | `forge reload` | Re-read `.forge/config.json` and apply changes to the daemon. Run after any config edit. (`forge sync` is a backwards-compatible alias.) |
@@ -467,6 +482,11 @@ launchctl list | grep forge
 Linux:
 ```bash
 systemctl --user status forge.service
+```
+
+Windows (cmd or PowerShell):
+```cmd
+schtasks /Query /TN \Forge\ForgeDaemon
 ```
 
 **node-pty build error**
