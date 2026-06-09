@@ -89,3 +89,28 @@ describe('systemd.uninstall', () => {
     expect(execSync).not.toHaveBeenCalled();
   });
 });
+
+describe('systemd.isInstalled', () => {
+  let configHome;
+
+  beforeEach(() => {
+    configHome = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-systemd-cfg-'));
+    process.env.XDG_CONFIG_HOME = configHome;
+  });
+
+  afterEach(() => {
+    fs.rmSync(configHome, { recursive: true, force: true });
+    delete process.env.XDG_CONFIG_HOME;
+  });
+
+  test('returns false when unit file does not exist', () => {
+    expect(systemd.isInstalled()).toBe(false);
+  });
+
+  test('returns true when unit file exists', () => {
+    const target = path.join(configHome, 'systemd', 'user', 'forge.service');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, 'placeholder');
+    expect(systemd.isInstalled()).toBe(true);
+  });
+});

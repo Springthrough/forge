@@ -58,4 +58,8 @@ function uninstall() {
   try { execSync('systemctl --user daemon-reload', { stdio: 'ignore' }); } catch {}
 }
 
-module.exports = { generateUnit, install, uninstall, unitPath };
+function isInstalled() {
+  return fs.existsSync(unitPath());
+}
+
+module.exports = { generateUnit, install, uninstall, isInstalled, unitPath };
