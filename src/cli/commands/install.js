@@ -1,19 +1,23 @@
 // src/cli/commands/install.js
 const chalk = require('chalk');
 const client = require('../client');
+const { getServiceImpl } = require('../service');
 
 module.exports = function registerInstall(program) {
   program
     .command('install')
-    .description('Register forge as a launchd agent and start the daemon')
+    .description('Register forge as a user service and start the daemon')
     .action(async () => {
-      if (process.platform !== 'darwin') {
-        console.error(chalk.red('forge install currently only supports macOS (launchd)'));
+      let service;
+      try {
+        service = getServiceImpl();
+      } catch (err) {
+        console.error(chalk.red(err.message));
         process.exit(1);
       }
-      const { install } = require('../service/launchd');
+
       console.log('Installing forge daemon...');
-      install();
+      service.install();
 
       // Poll up to 5s for daemon readiness
       let ready = false;
