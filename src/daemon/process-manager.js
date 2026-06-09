@@ -10,7 +10,12 @@ const { killProcessTree, isProcessTreeAlive, waitForProcessTreeDead } = require(
 const MAX_BUFFER = 200;
 
 function getDefaultShell(platform = process.platform) {
-  if (process.env.SHELL) return process.env.SHELL;
+  // Skip $SHELL on Windows: Git Bash / WSL set SHELL to /usr/bin/bash, but
+  // getShellInvokeFlag() returns `/c` on win32 — producing `bash /c "..."`
+  // which is wrong (bash wants -c). Mixing /c and -c would require coupling
+  // the flag to the resolved shell binary; for v0.8 we just pin Windows to
+  // COMSPEC/cmd.exe and document that SHELL override is POSIX-only.
+  if (platform !== 'win32' && process.env.SHELL) return process.env.SHELL;
   if (platform === 'darwin') return '/bin/zsh';
   if (platform === 'win32')  return process.env.COMSPEC || 'cmd.exe';
   return '/bin/sh';

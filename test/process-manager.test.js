@@ -718,9 +718,13 @@ describe('getDefaultShell — win32 branch', () => {
     else process.env.COMSPEC = savedComspec;
   });
 
-  test('returns process.env.SHELL when set, even on win32', () => {
-    process.env.SHELL = '/usr/bin/fish';
-    expect(getDefaultShell('win32')).toBe('/usr/bin/fish');
+  test('ignores process.env.SHELL on win32 (avoids bash /c "..." mismatch under Git Bash)', () => {
+    // Git Bash on Windows sets SHELL=/usr/bin/bash, but getShellInvokeFlag()
+    // returns `/c` on win32 — bash wants -c, so honoring SHELL on win32 would
+    // produce a broken spawn. Pin to COMSPEC/cmd.exe on win32 instead.
+    process.env.SHELL = '/usr/bin/bash';
+    process.env.COMSPEC = 'C:\\Windows\\System32\\cmd.exe';
+    expect(getDefaultShell('win32')).toBe('C:\\Windows\\System32\\cmd.exe');
   });
 
   test('falls back to COMSPEC on win32 when SHELL is unset', () => {
