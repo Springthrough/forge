@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import Terminal from './Terminal.jsx';
@@ -10,8 +9,6 @@ function formatUptime(s) {
 }
 
 export default function ProcessPanel({ projectName, process, allocations }) {
-  const [expanded, setExpanded] = useState(true);
-
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: process.name });
 
@@ -43,7 +40,7 @@ export default function ProcessPanel({ projectName, process, allocations }) {
 
   return (
     <div ref={setNodeRef} style={style} className="process-panel">
-      <div className="process-panel__header" onClick={() => setExpanded(v => !v)}>
+      <div className="process-panel__header">
         <span
           className="drag-handle"
           {...attributes}
@@ -68,13 +65,10 @@ export default function ProcessPanel({ projectName, process, allocations }) {
             <button className="btn btn--sm btn--success" onClick={handleStart}>start</button>
           )}
         </div>
-        <span className="chevron">{expanded ? '▾' : '▸'}</span>
       </div>
-      {expanded && (
-        <div className="process-panel__body">
-          <Terminal projectName={projectName} processName={process.name} />
-        </div>
-      )}
+      <div className="process-panel__body">
+        <Terminal projectName={projectName} processName={process.name} />
+      </div>
     </div>
   );
 }

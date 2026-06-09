@@ -221,7 +221,6 @@ body {
 .process-panel__name { font-size: 12px; font-weight: 600; flex: 1; }
 .process-panel__meta { font-size: 10px; color: var(--text-secondary); white-space: nowrap; }
 .process-panel__controls { display: flex; gap: 6px; margin-left: auto; }
-.chevron { font-size: 11px; color: var(--text-secondary); flex-shrink: 0; }
 .process-panel__body {
   border-top: 1px solid var(--bg-overlay);
   height: 220px;
