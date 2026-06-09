@@ -14,8 +14,9 @@ function fontSizeForWidth(w) {
   return 14;
 }
 
-export default function Terminal({ projectName, processName }) {
+export default function Terminal({ projectName, processName, clearKey = 0 }) {
   const containerRef = useRef(null);
+  const termRef = useRef(null);
 
   useEffect(() => {
     const initialWidth = containerRef.current?.clientWidth ?? 0;
@@ -31,6 +32,7 @@ export default function Terminal({ projectName, processName }) {
       cursorBlink: true,
       scrollback: 1000,
     });
+    termRef.current = term;
 
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -72,9 +74,17 @@ export default function Terminal({ projectName, processName }) {
     return () => {
       observer.disconnect();
       ws.close();
+      termRef.current = null;
       term.dispose();
     };
   }, [projectName, processName]);
+
+  // Bumping `clearKey` (parent does this on restart/start) clears the visible
+  // viewport AND xterm's scrollback so the next logs are the fresh boot.
+  // Skip the initial render (clearKey === 0) — only react to bumps.
+  useEffect(() => {
+    if (clearKey > 0) termRef.current?.clear();
+  }, [clearKey]);
 
   return <div ref={containerRef} className="terminal-wrap" />;
 }

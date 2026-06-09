@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import Terminal from './Terminal.jsx';
@@ -36,8 +37,11 @@ export default function ProcessPanel({
 
   const apiBase = `/api/projects/${encodeURIComponent(projectName)}/processes/${encodeURIComponent(process.name)}`;
 
+  const [clearKey, setClearKey] = useState(0);
+
   const handleRestart = (e) => {
     e.stopPropagation();
+    setClearKey(k => k + 1);
     fetch(`${apiBase}/restart`, { method: 'POST' });
   };
   const handleStop = (e) => {
@@ -46,6 +50,7 @@ export default function ProcessPanel({
   };
   const handleStart = (e) => {
     e.stopPropagation();
+    setClearKey(k => k + 1);
     fetch(`${apiBase}/up`, { method: 'POST' });
   };
 
@@ -106,7 +111,7 @@ export default function ProcessPanel({
         </div>
       </div>
       <div className="process-panel__body">
-        <Terminal projectName={projectName} processName={process.name} />
+        <Terminal projectName={projectName} processName={process.name} clearKey={clearKey} />
       </div>
     </div>
   );
