@@ -78,6 +78,15 @@ export default function ProjectTab({ project, onProjectUpdate }) {
   }, [fullscreenName, processes]);
 
   useEffect(() => {
+    if (!fullscreenName) return;
+    function onKeyDown(e) {
+      if (e.key === 'Escape') setFullscreenName(null);
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [fullscreenName]);
+
+  useEffect(() => {
     if (!project || processes.length === 0) return;
     try {
       const stored = JSON.parse(localStorage.getItem(storageKey(project.name)) ?? '[]');
