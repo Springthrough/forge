@@ -8,6 +8,8 @@ const { createPortAllocator } = require('../../src/daemon/port-allocator');
 const { createServiceManager } = require('../../src/daemon/services/manager');
 const { findFreePort } = require('../helpers/find-free-port');
 
+const TEST_PROJECT_PATH = path.join(os.tmpdir(), 'sai');
+
 function tmpServer() {
   const p = path.join(os.tmpdir(), `forge-api-test-${Date.now()}.json`);
   const registry = createRegistry(p);
@@ -28,7 +30,7 @@ beforeAll(async () => {
 function makeConfig(overrides = {}) {
   return {
     name: 'sai',
-    path: '/tmp/sai',
+    path: TEST_PROJECT_PATH,
     envFile: '.env.forge',
     processes: [
       { name: 'api', command: 'echo hi', cwd: '.', ports: [candidatePorts[0], candidatePorts[1]], portEnv: 'PORT' }
@@ -65,7 +67,7 @@ test('POST /api/projects/register returns allocated port', async () => {
 
 test('POST /api/projects/register returns 400 without name', async () => {
   const { app, cleanup } = tmpServer();
-  const res = await request(app).post('/api/projects/register').send({ path: '/tmp/x' });
+  const res = await request(app).post('/api/projects/register').send({ path: path.join(os.tmpdir(), 'x') });
   expect(res.status).toBe(400);
   cleanup();
 });
