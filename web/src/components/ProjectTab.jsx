@@ -18,6 +18,7 @@ import ProcessPanel from './ProcessPanel.jsx';
 
 function storageKey(name) { return `forge:panel-order:${name}`; }
 function viewModeKey(name) { return `forge:view-mode:${name}`; }
+const SERVICES_COLLAPSED_KEY = 'forge:services-collapsed';
 
 function readViewMode(name) {
   if (!name) return 'grid';
@@ -25,6 +26,16 @@ function readViewMode(name) {
     return localStorage.getItem(viewModeKey(name)) === 'carousel' ? 'carousel' : 'grid';
   } catch {
     return 'grid';
+  }
+}
+
+function readServicesCollapsed() {
+  try {
+    const raw = localStorage.getItem(SERVICES_COLLAPSED_KEY);
+    if (raw === null) return true;
+    return raw !== 'false';
+  } catch {
+    return true;
   }
 }
 
@@ -74,6 +85,11 @@ export default function ProjectTab({ project, onProjectUpdate }) {
   const carouselRef = useRef(null);
   const prevViewModeRef = useRef('grid');
   const [centeredName, setCenteredName] = useState(null);
+  const [servicesCollapsed, setServicesCollapsed] = useState(() => readServicesCollapsed());
+
+  useEffect(() => {
+    try { localStorage.setItem(SERVICES_COLLAPSED_KEY, String(servicesCollapsed)); } catch {}
+  }, [servicesCollapsed]);
   const { catalog, enabled, busy, toggle } = useServicesSection(project);
 
   // Reset fullscreen when the user switches to a different project tab.
@@ -291,30 +307,52 @@ export default function ProjectTab({ project, onProjectUpdate }) {
       </DndContext>
 
       {!fullscreenName && catalog.length > 0 && (
-        <div className="services-section">
-          <div className="section-label">Shared Services</div>
-          <div className="services-toggle-list">
-            {catalog.map(svc => {
-              const isEnabled = !!enabled[svc];
-              const isBusy = busy === svc;
-              const envVar = enabled[svc]?.env;
-              return (
-                <div key={svc} className="services-toggle-row">
-                  <span className="services-toggle-name">{svc}</span>
-                  {isEnabled && envVar && (
-                    <span className="services-toggle-env">{envVar}</span>
-                  )}
-                  <button
-                    className={`btn btn--sm ${isEnabled ? 'btn--danger' : 'btn--outline'}`}
-                    onClick={() => toggle(svc)}
-                    disabled={isBusy}
-                  >
-                    {isBusy ? '…' : isEnabled ? 'disable' : 'enable'}
-                  </button>
-                </div>
-              );
-            })}
+        <div className={`services-section${servicesCollapsed ? ' services-section--collapsed' : ''}`}>
+          <div
+            className="services-section__header"
+            onClick={() => setServicesCollapsed(c => !c)}
+            title={servicesCollapsed ? 'expand shared services' : 'collapse shared services'}
+          >
+            <span className="services-section__chevron">{servicesCollapsed ? '▸' : '▾'}</span>
+            <span className="section-label">Shared Services</span>
+            {servicesCollapsed && (
+              <div className="services-section__chips">
+                {catalog.map(svc => {
+                  const isEnabled = !!enabled[svc];
+                  return (
+                    <span key={svc} className={`service-chip${isEnabled ? ' service-chip--on' : ''}`}>
+                      <span className="service-chip__dot">●</span>
+                      <span>{svc}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </div>
+          {!servicesCollapsed && (
+            <div className="services-toggle-list">
+              {catalog.map(svc => {
+                const isEnabled = !!enabled[svc];
+                const isBusy = busy === svc;
+                const envVar = enabled[svc]?.env;
+                return (
+                  <div key={svc} className="services-toggle-row">
+                    <span className="services-toggle-name">{svc}</span>
+                    {isEnabled && envVar && (
+                      <span className="services-toggle-env">{envVar}</span>
+                    )}
+                    <button
+                      className={`btn btn--sm ${isEnabled ? 'btn--danger' : 'btn--outline'}`}
+                      onClick={() => toggle(svc)}
+                      disabled={isBusy}
+                    >
+                      {isBusy ? '…' : isEnabled ? 'disable' : 'enable'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
