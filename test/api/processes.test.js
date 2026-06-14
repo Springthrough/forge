@@ -6,6 +6,7 @@ const { createServer } = require('../../src/daemon/server');
 const { createRegistry } = require('../../src/daemon/registry');
 const { createPortAllocator } = require('../../src/daemon/port-allocator');
 const { createServiceManager } = require('../../src/daemon/services/manager');
+const { findFreePort } = require('../helpers/find-free-port');
 
 function makeMockProcessManager() {
   return {
@@ -281,6 +282,48 @@ test('routes fall back to registry config when config.json is missing', async ()
   const procsPassed = processManager.up.mock.calls[0][1];
   expect(procsPassed[0].name).toBe('api');
   expect(procsPassed[0].env).toBeUndefined();
+});
+
+test('POST /processes/up allocates a port for a process added to config after registration', async () => {
+  const { app, processManager, rewriteConfig } = setupWithDisk();
+  const newPort = await findFreePort();
+  rewriteConfig(c => {
+    c.processes.push({
+      name: 'worker',
+      command: 'node worker.js --port $PORT',
+      cwd: '.',
+      ports: [newPort],
+      portEnv: 'PORT',
+    });
+    return c;
+  });
+  const res = await request(app).post('/api/projects/sai/processes/up');
+  expect(res.status).toBe(200);
+  const allocationsPassed = processManager.up.mock.calls[0][2];
+  expect(allocationsPassed.ports).toHaveProperty('worker', newPort);
+  expect(allocationsPassed.ports).toHaveProperty('api', 3000);
+});
+
+test('POST /processes/up writes portExportEnv for a newly-added process to the env file', async () => {
+  const { app, projectDir, rewriteConfig } = setupWithDisk();
+  const newPort = await findFreePort();
+  rewriteConfig(c => {
+    c.envFile = '.env.forge';
+    c.processes.push({
+      name: 'worker',
+      command: 'node worker.js --port $PORT',
+      cwd: '.',
+      ports: [newPort],
+      portEnv: 'PORT',
+      portExportEnv: 'WORKER_PORT',
+    });
+    return c;
+  });
+  const res = await request(app).post('/api/projects/sai/processes/up');
+  expect(res.status).toBe(200);
+  const envPath = path.join(projectDir, '.env.forge');
+  expect(fs.existsSync(envPath)).toBe(true);
+  expect(fs.readFileSync(envPath, 'utf8')).toMatch(new RegExp(`WORKER_PORT=${newPort}`));
 });
 
 test('POST /processes/:name/restart writes the env file with fresh config', async () => {

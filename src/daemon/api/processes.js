@@ -22,19 +22,25 @@ function createProcessRoutes({ registry, processManager, serviceManager, portAll
       return res.status(500).json({ error: `Failed to start services: ${err.message}` });
     }
 
-    // Re-validate registered ports — they may have been claimed since forge add/reload.
-    // Only revalidate processes that aren't already running (no-op for idempotent calls).
+    // Reserve ports for processes added to config.json since the last forge add/reload,
+    // and revalidate existing reservations (they may have been claimed since allocation).
+    // Skip processes that are already running (no-op for idempotent calls).
     const ports = { ...(project.allocations?.ports ?? {}) };
     let anyChanged = false;
     if (portAllocator) {
       for (const proc of project.config?.processes ?? []) {
-        if (ports[proc.name] == null || !proc.ports?.length) continue;
+        if (!proc.ports?.length) continue;
         if (processManager.isRunning(req.params.name, proc.name)) continue;
         try {
-          const fresh = await portAllocator.revalidate(req.params.name, proc.name, proc.ports);
-          if (fresh !== null && fresh !== ports[proc.name]) {
-            ports[proc.name] = fresh;
+          if (ports[proc.name] == null) {
+            ports[proc.name] = await portAllocator.reserve(req.params.name, proc.name, proc.ports);
             anyChanged = true;
+          } else {
+            const fresh = await portAllocator.revalidate(req.params.name, proc.name, proc.ports);
+            if (fresh !== null && fresh !== ports[proc.name]) {
+              ports[proc.name] = fresh;
+              anyChanged = true;
+            }
           }
         } catch (err) {
           return res.status(500).json({ error: `Port allocation failed for ${proc.name}: ${err.message}` });
