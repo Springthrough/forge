@@ -15,9 +15,19 @@ function getDefaultShell(platform = process.platform) {
   // which is wrong (bash wants -c). Mixing /c and -c would require coupling
   // the flag to the resolved shell binary; for v0.8 we just pin Windows to
   // COMSPEC/cmd.exe and document that SHELL override is POSIX-only.
-  if (platform !== 'win32' && process.env.SHELL) return process.env.SHELL;
-  if (platform === 'darwin') return '/bin/zsh';
-  if (platform === 'win32')  return process.env.COMSPEC || 'cmd.exe';
+  if (platform === 'win32') return process.env.COMSPEC || 'cmd.exe';
+
+  // Honor $SHELL on POSIX — UNLESS it's zsh. zsh silently strips env vars
+  // whose names aren't valid POSIX identifiers (anything with hyphens, dots,
+  // etc.) at startup, which breaks .NET-style `ConnectionStrings__Foo-Bar`
+  // overrides and any other dotted/hyphenated config key passed via
+  // envFileCommand. bash and sh both propagate such names correctly.
+  // macOS defaults SHELL to /bin/zsh, so most macOS users hit this — skip it.
+  const userShell = process.env.SHELL;
+  if (userShell && !/(^|\/)zsh$/.test(userShell)) return userShell;
+
+  // POSIX fallback: /bin/sh is universally present, POSIX-compliant, and
+  // matches Node's own `child_process.spawn(cmd, { shell: true })` default.
   return '/bin/sh';
 }
 

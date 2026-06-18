@@ -635,19 +635,28 @@ describe('getDefaultShell', () => {
     else process.env.SHELL = savedShell;
   });
 
-  test('returns process.env.SHELL when it is set', () => {
+  test('returns process.env.SHELL when it is set to a non-zsh shell', () => {
     process.env.SHELL = '/usr/bin/fish';
     expect(getDefaultShell('linux')).toBe('/usr/bin/fish');
     expect(getDefaultShell('darwin')).toBe('/usr/bin/fish');
   });
 
-  test('falls back to /bin/zsh on darwin when SHELL is unset', () => {
-    delete process.env.SHELL;
-    expect(getDefaultShell('darwin')).toBe('/bin/zsh');
+  test('skips zsh in process.env.SHELL — zsh strips env vars with hyphens at startup', () => {
+    // zsh silently drops env vars whose names aren't valid POSIX identifiers
+    // (e.g. .NET-style `ConnectionStrings__Foo-Bar`). bash/sh propagate them.
+    // macOS defaults SHELL=/bin/zsh, so most macOS users would be affected.
+    process.env.SHELL = '/bin/zsh';
+    expect(getDefaultShell('darwin')).toBe('/bin/sh');
+    expect(getDefaultShell('linux')).toBe('/bin/sh');
+
+    // Match other zsh paths (homebrew, asdf, etc.) too.
+    process.env.SHELL = '/opt/homebrew/bin/zsh';
+    expect(getDefaultShell('darwin')).toBe('/bin/sh');
   });
 
-  test('falls back to /bin/sh on linux when SHELL is unset', () => {
+  test('falls back to /bin/sh on POSIX when SHELL is unset', () => {
     delete process.env.SHELL;
+    expect(getDefaultShell('darwin')).toBe('/bin/sh');
     expect(getDefaultShell('linux')).toBe('/bin/sh');
   });
 });
