@@ -23,6 +23,7 @@ function createProjectRoutes({ registry, portAllocator, serviceManager }) {
   async function allocatePorts(config) {
     const ports = {};
     for (const proc of config.processes ?? []) {
+      if (!proc.ports?.length) continue; // port-less process: nothing to reserve
       ports[proc.name] = await portAllocator.reserve(config.name, proc.name, proc.ports);
     }
     return ports;
