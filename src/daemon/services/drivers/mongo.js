@@ -2,7 +2,7 @@ const { ensureContainerRunning, stopContainer, checkTcpHealth, execInContainer }
 
 const DEFAULT_NAME = 'mongo';
 const DEFAULT_CONTAINER_NAME = 'forge-mongo';
-const IMAGE = 'mongo:7';
+const IMAGE = 'mongo:8.0.23';
 const DEFAULT_PORT = 27017;
 
 function createMongoDriver({ name = DEFAULT_NAME, containerName = DEFAULT_CONTAINER_NAME, port = DEFAULT_PORT, replicaSet = false } = {}) {
