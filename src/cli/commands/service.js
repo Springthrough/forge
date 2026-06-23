@@ -173,7 +173,12 @@ module.exports = function registerService(program) {
       }
       console.log(chalk.green(`✓ Updated ${chalk.bold(key)}`));
       if (!name) {
-        console.log(chalk.dim(`  Run 'forge service down ${type} && forge service up ${type}' to apply.`));
+        // The driver is rebuilt only when the daemon boots (buildDriverList), and
+        // options like port/replicaSet are baked into the container at creation time.
+        // A plain 'service down && up' restarts the *existing* container unchanged,
+        // so it must be removed and the daemon restarted for the new options to apply.
+        console.log(chalk.dim(`  To apply: stop dependents, then 'forge service down ${type}',`));
+        console.log(chalk.dim(`  'docker rm forge-${type}', and restart the forge daemon.`));
       }
     });
 };
