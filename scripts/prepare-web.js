@@ -23,5 +23,9 @@ function run(args, cwd) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
+// Run both steps inside web/. `npm run build:web` at the root previously
+// resolved `vite` against root/node_modules — which doesn't have it, since
+// vite is a web/-only devDependency. Running `npm run build` from web/ uses
+// the local .bin, so root doesn't need vite installed.
 run(['install'], path.join(root, 'web'));
-run(['run', 'build:web'], root);
+run(['run', 'build'], path.join(root, 'web'));
