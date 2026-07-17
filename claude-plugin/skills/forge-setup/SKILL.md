@@ -27,6 +27,7 @@ Check all of these before touching anything (run them; don't assume):
 | Check | Command | Requirement |
 |---|---|---|
 | Node | `node --version` | ≥ 20 |
+| corepack (Yarn/pnpm projects) | `command -v corepack` | required whenever any package.json declares `"packageManager": "yarn@X"` or similar. Homebrew's Node 25 ships WITHOUT corepack — install with `npm i -g corepack@latest && corepack enable`, then `corepack prepare yarn@<version> --activate`. Skip on Node ≤ 24 (bundled). |
 | Docker daemon | `docker ps` | must succeed, not just be installed |
 | uv (Python projects) | `uv --version` | present if any process uses `uv run` |
 | GitHub access | `gh auth status` | for cloning private sibling repos |
@@ -89,6 +90,13 @@ Read `.env.forge` after `forge add` and sanity-check the connection strings
 (e.g. Mongo replica-set suffix if the project expects one — enable with
 `forge service configure mongo --replica-set` BEFORE first `forge up`;
 options bake in at container creation).
+
+If you already ran `forge add` before configuring, the recovery is:
+`forge service down mongo` → `docker rm forge-mongo` → restart the daemon
+(`forge uninstall && forge install`) → then `forge reload` in each project
+that uses mongo. The reload re-provisions and rewrites `.env.forge` with
+the updated URI (e.g. `?replicaSet=rs0`); without it the file stays stale
+even though the container was recreated with the new options.
 
 ## 6. Verify provisioning — do not trust silence
 
