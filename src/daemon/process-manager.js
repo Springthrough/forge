@@ -35,6 +35,22 @@ function getShellInvokeFlag(platform = process.platform) {
   return platform === 'win32' ? '/c' : '-c';
 }
 
+// Expand ${VAR}, $VAR, and %VAR% in a command string from the given env map,
+// BEFORE the command reaches the shell. This is what makes one config file
+// portable: cmd.exe never expands $PORT and POSIX shells never expand %PORT%,
+// so configs written on one OS silently break on the other. Only names present
+// in the map are replaced — anything else (e.g. $(subshell), $UNKNOWN) is left
+// untouched for the shell to handle.
+function expandCommandVars(command, env) {
+  return command.replace(
+    /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)|%([A-Za-z_][A-Za-z0-9_]*)%/g,
+    (match, braced, bare, winStyle) => {
+      const name = braced ?? bare ?? winStyle;
+      return Object.prototype.hasOwnProperty.call(env, name) ? String(env[name]) : match;
+    },
+  );
+}
+
 function defaultPollPort(port, timeoutMs) {
   return new Promise(resolve => {
     const deadline = Date.now() + timeoutMs;
@@ -172,7 +188,8 @@ function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit, envCo
 
     let ptyProc;
     try {
-      ptyProc = spawnFn(proc.command, env, cwd);
+      // Expand from the same env the child will see (forge-injected vars win).
+      ptyProc = spawnFn(expandCommandVars(proc.command, { ...process.env, ...env }), env, cwd);
     } catch (err) {
       record.status = 'crashed';
       record.startedAt = null;
@@ -395,4 +412,4 @@ function createProcessManager({ ptySpawn, pollPort, pollHttp, waitForExit, envCo
   };
 }
 
-module.exports = { createProcessManager, getDefaultShell, getShellInvokeFlag };
+module.exports = { createProcessManager, getDefaultShell, getShellInvokeFlag, expandCommandVars };
